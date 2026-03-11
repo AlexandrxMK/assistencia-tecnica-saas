@@ -1,4 +1,4 @@
-const model = require('../models/fotoModel');
+const model = require('../models/photoModel');
 
 const getPhotosByOS = async (req, res) => {
   try {

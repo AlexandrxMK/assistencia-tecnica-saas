@@ -1,4 +1,4 @@
-const model = require('../models/equipamentoModel');
+const model = require('../models/equipmentModel');
 
 const getAllEquipments = async (req, res) => {
   try {
