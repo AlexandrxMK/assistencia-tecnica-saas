@@ -1,14 +1,34 @@
 const express = require('express')
 const cors = require('cors')
 require('dotenv').config();
+
 const clientsRoute = require('./routes/clientsRoute')
+const employeesRoute = require('./routes/employeesRoute')
+const partRoute = require('./routes/partRoute')
+const equipmentRoute = require('./routes/equipmentRoute')
+const osRoute = require('./routes/osRoute')
+const paymentRoute = require('./routes/paymentRoute')
+const photoRoute = require('./routes/photoRoute')
+const notificationRoute = require('./routes/notificationRoute')
+const cargoRoute = require('./routes/cargoRoute')
+
 const app = express()
 
 app.use(cors());
 app.use(express.json());
+
 app.use('/clients', clientsRoute);
+app.use('/employees', employeesRoute);
+app.use('/part', partRoute);
+app.use('/equipment', equipmentRoute);
+app.use('/os', osRoute);
+app.use('/payment', paymentRoute);
+app.use('/photo', photoRoute);
+app.use('/notification', notificationRoute);
+app.use('/cargo', cargoRoute);
 
 const PORT  = 5000
+
 const server = app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`)
 })
