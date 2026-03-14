@@ -4,15 +4,12 @@ const pool = require('../db/db');
 async function getAllEmployees() {
   const { rows } = await pool.query(
     `SELECT 
-       id_funcionario, 
-       nome, 
-       cpf_cnpj, 
-       email, 
-       telefone, 
-       salario, 
-       TO_CHAR(data_admissao, 'DD/MM/YYYY') AS data_admissao, 
-       senha, 
-       cargo 
+       id_funcionario,
+       nome,
+       email,
+       senha_hash,
+       nivel_acesso,
+       id_cargo
      FROM funcionario`
   );
 
@@ -22,16 +19,13 @@ async function getAllEmployees() {
 async function getEmployeeById(id) {
   const { rows } = await pool.query(
     `SELECT 
-       id_funcionario, 
-       nome, 
-       cpf_cnpj, 
-       email, 
-       telefone, 
-       salario, 
-       TO_CHAR(data_admissao, 'DD/MM/YYYY') AS data_admissao, 
-       senha, 
-       cargo 
-     FROM funcionario 
+       id_funcionario,
+       nome,
+       email,
+       senha_hash,
+       nivel_acesso,
+       id_cargo
+     FROM funcionario
      WHERE id_funcionario = $1`,
     [id]
   );
@@ -42,16 +36,13 @@ async function getEmployeeById(id) {
 async function getEmployeeByEmail(email) {
   const { rows } = await pool.query(
     `SELECT 
-       id_funcionario, 
-       nome, 
-       cpf_cnpj, 
-       email, 
-       telefone, 
-       salario, 
-       TO_CHAR(data_admissao, 'DD/MM/YYYY') AS data_admissao, 
-       senha, 
-       cargo 
-     FROM funcionario 
+       id_funcionario,
+       nome,
+       email,
+       senha_hash,
+       nivel_acesso,
+       id_cargo
+     FROM funcionario
      WHERE email = $1`,
     [email]
   );
@@ -61,77 +52,62 @@ async function getEmployeeByEmail(email) {
 
 async function createEmployee({
   nome,
-  cpf_cnpj,
   email,
-  telefone,
-  salario,
-  data_admissao,
-  senha,
-  cargo
+  senha_hash,
+  nivel_acesso,
+  id_cargo
 }) {
 
-  // const hash = await bcrypt.hash(senha, 10);
+  // const hash = await bcrypt.hash(senha_hash, 10);
 
   const { rows } = await pool.query(
-    `INSERT INTO funcionario 
-     (nome, cpf_cnpj, email, telefone, salario, data_admissao, senha, cargo) 
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO funcionario
+     (nome, email, senha_hash, nivel_acesso, id_cargo)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING id_funcionario`,
     [
       nome,
-      cpf_cnpj,
       email,
-      telefone,
-      parseFloat(salario),
-      data_admissao,
-      senha, // hash
-      cargo
+      senha_hash, // hash
+      nivel_acesso,
+      id_cargo
     ]
   );
 
   return {
     id: rows[0].id_funcionario,
     nome,
-    cpf_cnpj,
     email,
-    telefone,
-    salario,
-    data_admissao,
-    cargo
+    nivel_acesso,
+    id_cargo
   };
 }
 
 async function updateEmployee(
   id,
-  { nome, cpf_cnpj, email, telefone, salario, data_admissao, senha, cargo }
+  { nome, email, senha_hash, nivel_acesso, id_cargo }
 ) {
 
   let query = `
-    UPDATE funcionario 
+    UPDATE funcionario
     SET nome = $1,
-        cpf_cnpj = $2,
-        email = $3,
-        telefone = $4,
-        salario = $5,
-        data_admissao = $6,
-        cargo = $7`;
+        email = $2,
+        nivel_acesso = $3,
+        id_cargo = $4`;
 
   const params = [
     nome,
-    cpf_cnpj,
     email,
-    telefone,
-    parseFloat(salario),
-    data_admissao,
-    cargo
+    nivel_acesso,
+    id_cargo
   ];
 
-  let index = 8;
+  let index = 5;
 
-  if (senha) {
-    // const hash = await bcrypt.hash(senha, 10);
-    query += `, senha = $${index}`;
-    params.push(senha); // hash
+  if (senha_hash) {
+    // const hash = await bcrypt.hash(senha_hash, 10);
+    query += `, senha_hash = $${index}`;
+    params.push(senha_hash); // hash
     index++;
   }
 
@@ -150,7 +126,7 @@ async function patchEmployee(id, fields) {
 
   if (keys.length === 0) return false;
 
-  const senhaIndex = keys.indexOf('senha');
+  const senhaIndex = keys.indexOf('senha_hash');
 
   if (senhaIndex !== -1) {
     // values[senhaIndex] = await bcrypt.hash(values[senhaIndex], 10);
@@ -161,8 +137,8 @@ async function patchEmployee(id, fields) {
     .join(', ');
 
   const result = await pool.query(
-    `UPDATE funcionario 
-     SET ${setClause} 
+    `UPDATE funcionario
+     SET ${setClause}
      WHERE id_funcionario = $${keys.length + 1}`,
     [...values, id]
   );
@@ -172,7 +148,7 @@ async function patchEmployee(id, fields) {
 
 async function deleteEmployee(id) {
   const result = await pool.query(
-    'DELETE FROM funcionario WHERE id_funcionario = $1',
+    `DELETE FROM funcionario WHERE id_funcionario = $1`,
     [id]
   );
 

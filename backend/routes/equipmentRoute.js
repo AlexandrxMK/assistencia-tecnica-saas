@@ -4,6 +4,7 @@ const controller = require('../controllers/equipmentController');
 
 router.get('/', controller.getAllEquipments);
 router.get('/:id', controller.getEquipmentById);
+router.get('/:id/history', controller.getHistoryById);
 router.post('/', controller.createEquipment);
 router.put('/:id', controller.updateEquipment);
 router.delete('/:id', controller.deleteEquipment);

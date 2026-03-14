@@ -36,7 +36,7 @@ const updateClient = async (req, res) => {
     if (!updated) {
       return res.status(404).json({ message: 'Cliente não encontrado' });
     }
-    res.json({ message: 'Cliente atualizado com sucesso' });
+    res.json({ message: 'Cliente atualizado com sucesso', updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -48,7 +48,7 @@ const patchClient = async (req, res) => {
     if (!patched) {
       return res.status(404).json({ message: 'Cliente não encontrado' });
     }
-    res.json({ message: 'Cliente atualizado com sucesso' });
+    res.json({ message: 'Cliente atualizado com sucesso', patched });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -60,13 +60,13 @@ const deleteClient = async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ message: 'Cliente não encontrado' });
     }
-    res.json({ message: 'Cliente removido com sucesso' });
+    res.json({ message: 'Cliente removido com sucesso', deleted });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-/*const getClientByEmail = async (req, res) => {
+const getClientByEmail = async (req, res) => {
   try {
     const { email } = req.query;
     if (!email) {
@@ -81,7 +81,24 @@ const deleteClient = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};*/
+};
+
+const getClientByPhone = async (req, res) => {
+  try {
+    const { telefone } = req.query;
+    if (!telefone) {
+      return res.status(400).json({ message: 'Telefone obrigatório' });
+    }
+
+    const client = await model.getClientByPhone(telefone);
+    if (!client) {
+      return res.status(404).json({ message: 'Cliente não encontrado' });
+    }
+    res.status(200).json(client);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 module.exports = {
   getAllClients,
@@ -90,5 +107,6 @@ module.exports = {
   updateClient,
   patchClient,
   deleteClient,
-  //getClientByEmail
+  getClientByEmail,
+  getClientByPhone
 };

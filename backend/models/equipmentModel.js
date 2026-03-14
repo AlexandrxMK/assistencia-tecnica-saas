@@ -24,24 +24,31 @@ async function createEquipment({ tipo, marca, modelo, id_cliente }) {
 }
 
 async function updateEquipment(id, { tipo, marca, modelo, id_cliente }) {
-  const result = await pool.query(
+  const {rows} = await pool.query(
     `UPDATE equipamento
      SET tipo = $1,
          marca = $2,
          modelo = $3,
          id_cliente = $4
-     WHERE id_equipamento = $5`,
+     WHERE id_equipamento = $5
+     RETURNING *`,
     [tipo, marca, modelo, id_cliente, id]
   );
-  return result.rowCount > 0;
+  return rows[0];
 }
 
 async function deleteEquipment(id) {
-  const result = await pool.query(
-    `DELETE FROM equipamento WHERE id_equipamento = $1`,
+  const {rows} = await pool.query(
+    `DELETE FROM equipamento WHERE id_equipamento = $1
+    RETURNING *`,
     [id]
   );
-  return result.rowCount > 0;
+  return rows[0];
+}
+
+async function getHistoryById(id){
+  const {rows} = await pool.query('SELECT * FROM os WHERE id_equipamento = $1 ORDER BY data_abertura DESC', [id]);
+  return rows;
 }
 
 module.exports = {
@@ -49,5 +56,6 @@ module.exports = {
   getEquipmentById,
   createEquipment,
   updateEquipment,
-  deleteEquipment
+  deleteEquipment,
+  getHistoryById
 };

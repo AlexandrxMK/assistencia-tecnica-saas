@@ -24,15 +24,16 @@ async function createPart({ nome_peca, preco_unit, estoque }) {
 }
 
 async function updatePart(id, { nome_peca, preco_unit, estoque }) {
-  const result = await pool.query(
+  const {rows} = await pool.query(
     `UPDATE peca
      SET nome_peca = $1,
          preco_unit = $2,
          estoque = $3
-     WHERE id_peca = $4`,
+     WHERE id_peca = $4
+     RETURNING *`,
     [nome_peca, preco_unit, estoque, id]
   );
-  return result.rowCount > 0;
+  return rows[0];
 }
 
 async function patchPart(id, fields) {
@@ -43,22 +44,24 @@ async function patchPart(id, fields) {
 
   const setClause = keys.map((k, i) => `${k} = $${i+1}`).join(', ');
 
-  const result = await pool.query(
+  const {rows} = await pool.query(
     `UPDATE peca
      SET ${setClause}
-     WHERE id_peca = $${keys.length + 1}`,
+     WHERE id_peca = $${keys.length + 1}
+     RETURNING *`,
     [...values, id]
   );
 
-  return result.rowCount > 0;
+  return rows[0];
 }
 
 async function deletePart(id) {
-  const result = await pool.query(
-    `DELETE FROM peca WHERE id_peca = $1`,
+  const {rows} = await pool.query(
+    `DELETE FROM peca WHERE id_peca = $1
+    RETURNING *`,
     [id]
   );
-  return result.rowCount > 0;
+  return rows[0];
 }
 
 module.exports = {

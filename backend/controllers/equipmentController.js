@@ -38,7 +38,9 @@ const updateEquipment = async (req, res) => {
     if (!updated)
       return res.status(404).json({ message: 'Equipamento não encontrado' });
 
-    res.json({ message: 'Equipamento atualizado com sucesso' });
+    res.json({ message: 'Equipamento atualizado com sucesso',
+      updated
+     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -51,16 +53,32 @@ const deleteEquipment = async (req, res) => {
     if (!deleted)
       return res.status(404).json({ message: 'Equipamento não encontrado' });
 
-    res.json({ message: 'Equipamento removido' });
+    res.json({ message: 'Equipamento removido',deleted});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
+const getHistoryById = async (req, res) => {
+  try{
+    const history = await model.getHistoryById(req.params.id);
+
+    if(!history){
+      return res.status(404).json({message: 'Não Há histórico para esse equipamento'});
+    }
+
+    res.json({history});
+  }
+  catch{
+    res.status(500).json({ error: err.message });
+  }
+}
 
 module.exports = {
   getAllEquipments,
   getEquipmentById,
   createEquipment,
   updateEquipment,
-  deleteEquipment
+  deleteEquipment,
+  getHistoryById
 };

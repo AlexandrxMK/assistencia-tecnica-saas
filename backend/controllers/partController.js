@@ -38,7 +38,7 @@ const updatePart = async (req, res) => {
     if (!updated)
       return res.status(404).json({ message: 'Peça não encontrada' });
 
-    res.json({ message: 'Peça atualizada com sucesso' });
+    res.json({ message: 'Peça atualizada com sucesso', updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -51,7 +51,7 @@ const patchPart = async (req, res) => {
     if (!patched)
       return res.status(404).json({ message: 'Peça não encontrada' });
 
-    res.json({ message: 'Peça atualizada' });
+    res.json({ message: 'Peça atualizada', patched });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -64,7 +64,7 @@ const deletePart = async (req, res) => {
     if (!deleted)
       return res.status(404).json({ message: 'Peça não encontrada' });
 
-    res.json({ message: 'Peça removida' });
+    res.json({ message: 'Peça removida', deleted });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

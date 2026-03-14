@@ -85,7 +85,7 @@ async function updateClient(id, {
   complemento
 }) {
 
-  const result = await pool.query(
+  const {rows} = await pool.query(
     `UPDATE cliente
      SET nome = $1,
          cpf = $2,
@@ -96,7 +96,8 @@ async function updateClient(id, {
          numero = $7,
          cep = $8,
          complemento = $9
-     WHERE id_cliente = $10`,
+     WHERE id_cliente = $10
+     RETURNING *`,
     [
       nome,
       cpf,
@@ -111,7 +112,7 @@ async function updateClient(id, {
     ]
   );
 
-  return result.rowCount > 0;
+  return rows[0];
 }
 
 async function patchClient(id, fields) {
@@ -125,25 +126,38 @@ async function patchClient(id, fields) {
     .map((key, index) => `${key} = $${index + 1}`)
     .join(', ');
 
-  const result = await pool.query(
+  const {rows} = await pool.query(
     `UPDATE cliente
      SET ${setClause}
-     WHERE id_cliente = $${keys.length + 1}`,
+     WHERE id_cliente = $${keys.length + 1}
+     RETURNING *`,
     [...values, id]
   );
 
-  return result.rowCount > 0;
+  return rows[0];
 }
 
 async function deleteClient(id) {
 
-  const result = await pool.query(
-    `DELETE FROM cliente WHERE id_cliente = $1`,
+  const {rows} = await pool.query(
+    `DELETE FROM cliente WHERE id_cliente = $1
+    RETURNING *`,
     [id]
   );
 
-  return result.rowCount > 0;
+  return rows[0];
 }
+
+async function getClientByEmail(email) {
+  const {rows} = await pool.query('SELECT * FROM cliente WHERE email = $1', [email]);
+  return rows[0];
+}
+
+async function getClientByPhone(telefone) {
+  const {rows} = await pool.query('SELECT * FROM cliente WHERE telefone = $1', [telefone]);
+  return rows[0];
+}
+
 
 module.exports = {
   getAllClients,
@@ -151,5 +165,7 @@ module.exports = {
   createClient,
   updateClient,
   patchClient,
-  deleteClient
+  deleteClient,
+  getClientByEmail,
+  getClientByPhone
 };
