@@ -99,7 +99,25 @@ const getClientByPhone = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+const getClientsByName = async (req, res) => {
+  try {
+    const { nome } = req.query;
 
+    if (!nome) {
+      return res.status(400).json({ message: 'Nome obrigatorio' });
+    }
+
+    const clients = await model.getClientsByName(nome);
+
+    if (!clients || clients.length === 0) {
+      return res.status(404).json({ message: 'Nenhum cliente encontrado' });
+    }
+
+    return res.status(200).json(clients);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
 module.exports = {
   getAllClients,
   getClientById,
@@ -108,5 +126,7 @@ module.exports = {
   patchClient,
   deleteClient,
   getClientByEmail,
-  getClientByPhone
+  getClientByPhone,
+  getClientsByName
 };
+

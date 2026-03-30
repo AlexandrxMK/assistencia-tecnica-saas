@@ -158,6 +158,30 @@ async function getClientByPhone(telefone) {
   return rows[0];
 }
 
+async function getClientsByName(nome) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      id_cliente,
+      nome,
+      cpf,
+      telefone,
+      email,
+      rua,
+      bairro,
+      numero,
+      cep,
+      complemento
+    FROM cliente
+    WHERE nome ILIKE $1
+    ORDER BY nome ASC
+    `,
+    [`%${nome}%`]
+  );
+
+  return rows;
+}
+
 
 module.exports = {
   getAllClients,
@@ -167,5 +191,6 @@ module.exports = {
   patchClient,
   deleteClient,
   getClientByEmail,
-  getClientByPhone
+  getClientByPhone,
+  getClientsByName
 };

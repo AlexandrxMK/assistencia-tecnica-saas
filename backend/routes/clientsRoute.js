@@ -6,6 +6,7 @@ const { authenticate } = require('../middleware/authMiddleware');
 router.use(authenticate);
 router.get('/', controller.getAllClients);
 router.get('/search/email', controller.getClientByEmail);
+router.get('/search/name', controller.getClientsByName);
 router.get('/search/phone', controller.getClientByPhone);
 router.get('/:id', controller.getClientById);
 router.post('/', controller.createClient);

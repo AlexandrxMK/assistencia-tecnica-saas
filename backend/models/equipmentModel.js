@@ -13,26 +13,27 @@ async function getEquipmentById(id) {
   return rows[0];
 }
 
-async function createEquipment({ tipo, marca, modelo, id_cliente }) {
+async function createEquipment({ tipo, marca, modelo, serial, id_cliente }) {
   const { rows } = await pool.query(
-    `INSERT INTO equipamento (tipo, marca, modelo, id_cliente)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO equipamento (tipo, marca, modelo, serial, id_cliente)
+     VALUES ($1,$2,$3,$4,$5)
      RETURNING *`,
-    [tipo, marca, modelo, id_cliente]
+    [tipo, marca, modelo, serial || null, id_cliente]
   );
   return rows[0];
 }
 
-async function updateEquipment(id, { tipo, marca, modelo, id_cliente }) {
+async function updateEquipment(id, { tipo, marca, modelo, serial, id_cliente }) {
   const {rows} = await pool.query(
     `UPDATE equipamento
      SET tipo = $1,
          marca = $2,
          modelo = $3,
-         id_cliente = $4
-     WHERE id_equipamento = $5
+         serial = $4,
+         id_cliente = $5
+     WHERE id_equipamento = $6
      RETURNING *`,
-    [tipo, marca, modelo, id_cliente, id]
+    [tipo, marca, modelo, serial || null, id_cliente, id]
   );
   return rows[0];
 }
@@ -51,11 +52,28 @@ async function getHistoryById(id){
   return rows;
 }
 
+async function getHistoryBySerial(serial) {
+  const { rows } = await pool.query(
+    `
+    SELECT os.*
+    FROM os
+    JOIN equipamento
+      ON os.id_equipamento = equipamento.id_equipamento
+    WHERE equipamento.serial = $1
+    ORDER BY os.data_abertura DESC
+    `,
+    [serial]
+  );
+
+  return rows;
+}
+
 module.exports = {
   getAllEquipments,
   getEquipmentById,
   createEquipment,
   updateEquipment,
   deleteEquipment,
-  getHistoryById
+  getHistoryById,
+  getHistoryBySerial
 };
