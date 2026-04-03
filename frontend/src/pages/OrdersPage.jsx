@@ -5,16 +5,32 @@ import { backendApi } from '../services/backendApi';
 import { API_BASE_URL, extractApiError } from '../lib/api';
 import { formatCurrency, formatDate, toLocalDateTimeInputValue } from '../lib/format';
 
-const allowedStatus = [
+const STATUS_OPTIONS = [
   'Aberto',
   'Em Analise',
   'Em Analise Tecnica',
-  'Em Analise Técnica',
   'Em Conserto',
   'Concluida',
-  'Concluída',
   'Cancelada'
 ];
+
+function normalizeStatusValue(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+const STATUS_CANONICAL_MAP = STATUS_OPTIONS.reduce((accumulator, status) => {
+  accumulator[normalizeStatusValue(status)] = status;
+  return accumulator;
+}, {});
+
+function toCanonicalStatus(value) {
+  const normalizedValue = normalizeStatusValue(value);
+  return STATUS_CANONICAL_MAP[normalizedValue] || null;
+}
 
 const initialForm = {
   descricao_problema: '',
@@ -25,13 +41,20 @@ const initialForm = {
 };
 
 export function OrdersPage() {
+  const statusOptions = [
+    { value: 'Aberto', label: 'Aberto' },
+    { value: 'Em Analise', label: 'Em Análise' },
+    { value: 'Em Analise Tecnica', label: 'Em Análise Técnica' },
+    { value: 'Em Conserto', label: 'Em Conserto' },
+    { value: 'Concluida', label: 'Concluída' },
+    { value: 'Cancelada', label: 'Cancelada' }
+  ];
+
   const [orders, setOrders] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [equipments, setEquipments] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [statusByOrder, setStatusByOrder] = useState({});
-  const [totalValue, setTotalValue] = useState({});
-  const [queriedTotals, setQueriedTotals] = useState({});
   const [status, setStatus] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -60,7 +83,7 @@ export function OrdersPage() {
       setEquipments(equipmentResponse.data || []);
       setStatusByOrder(
         ordersList.reduce((accumulator, order) => {
-          accumulator[order.id_os] = order.status_os;
+          accumulator[order.id_os] = toCanonicalStatus(order.status_os) || order.status_os;
           return accumulator;
         }, {})
       );
@@ -96,63 +119,22 @@ export function OrdersPage() {
 
   async function handlePatchStatus(orderId) {
     const nextStatus = statusByOrder[orderId];
+    const canonicalStatus = toCanonicalStatus(nextStatus) || nextStatus;
 
-    if (!nextStatus) {
+    if (!canonicalStatus) {
       return;
     }
 
     try {
-      const response = await backendApi.os.patchStatus(orderId, { status_os: nextStatus });
+      const response = await backendApi.os.patchStatus(orderId, {
+        status_os: canonicalStatus
+      });
       const notificationStatus = response.data?.notification?.status || 'sem retorno';
       setStatus({
         type: 'success',
         text: `Status da OS #${orderId} atualizado. Notificação: ${notificationStatus}.`
       });
       await loadData();
-    } catch (error) {
-      setStatus({ type: 'error', text: extractApiError(error) });
-    }
-  }
-
-  async function handleGetTotal(orderId) {
-    try {
-      const response = await backendApi.os.getTotal(orderId);
-      const rawValue = response.data?.valor_total;
-
-      if (rawValue === null || rawValue === undefined || rawValue === '') {
-        setStatus({
-          type: 'error',
-          text: `A OS #${orderId} ainda não possui valor_total definido.`
-        });
-        return;
-      }
-
-      const value = Number(rawValue);
-
-      if (!Number.isFinite(value)) {
-        setStatus({
-          type: 'error',
-          text: `A API retornou um valor_total inválido para a OS #${orderId}.`
-        });
-        return;
-      }
-
-      setTotalValue((values) => ({ ...values, [orderId]: value }));
-      setQueriedTotals((values) => ({ ...values, [orderId]: new Date().toISOString() }));
-      setOrders((items) =>
-        items.map((item) =>
-          String(item.id_os) === String(orderId)
-            ? {
-                ...item,
-                valor_total: value
-              }
-            : item
-        )
-      );
-      setStatus({
-        type: 'success',
-        text: `Valor total da OS #${orderId}: ${formatCurrency(value)}.`
-      });
     } catch (error) {
       setStatus({ type: 'error', text: extractApiError(error) });
     }
@@ -181,10 +163,7 @@ export function OrdersPage() {
 
   return (
     <div className="page-stack">
-      <Panel
-        title="Nova ordem de serviço"
-        subtitle="Crie OS com técnico e equipamento vinculados"
-      >
+      <Panel title="Nova ordem de serviço">
         <form className="form-grid" onSubmit={handleCreate}>
           <label className="field-full">
             Descrição do problema
@@ -218,9 +197,9 @@ export function OrdersPage() {
               }
               required
             >
-              {allowedStatus.map((statusOption) => (
-                <option key={statusOption} value={statusOption}>
-                  {statusOption}
+              {statusOptions.map((statusOption) => (
+                <option key={statusOption.value} value={statusOption.value}>
+                  {statusOption.label}
                 </option>
               ))}
             </select>
@@ -270,10 +249,7 @@ export function OrdersPage() {
         </form>
       </Panel>
 
-      <Panel
-        title="Ordens cadastradas"
-        subtitle="Gestão de status, PDF e link público"
-      >
+      <Panel title="Ordens cadastradas">
         <InlineMessage type={status.type}>{status.text}</InlineMessage>
 
         {isLoading ? <p>Carregando ordens...</p> : null}
@@ -309,9 +285,9 @@ export function OrdersPage() {
                           }))
                         }
                       >
-                        {allowedStatus.map((statusOption) => (
-                          <option key={`${order.id_os}-${statusOption}`} value={statusOption}>
-                            {statusOption}
+                        {statusOptions.map((statusOption) => (
+                          <option key={`${order.id_os}-${statusOption.value}`} value={statusOption.value}>
+                            {statusOption.label}
                           </option>
                         ))}
                       </select>

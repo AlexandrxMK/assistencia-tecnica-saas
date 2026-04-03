@@ -32,7 +32,7 @@ function fileFilter(_req, file, cb) {
   const isAllowedExtension = allowedExtensions.has(fileExtension);
 
   if (!isAllowedMime && !isAllowedExtension) {
-    cb(new Error('Formato de arquivo nao suportado. Envie JPG, PNG ou WEBP.'));
+    cb(new Error('Formato de arquivo não suportado. Envie JPG, PNG ou WEBP.'));
     return;
   }
 

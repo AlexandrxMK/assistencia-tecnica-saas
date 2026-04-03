@@ -104,7 +104,7 @@ const getClientsByName = async (req, res) => {
     const { nome } = req.query;
 
     if (!nome) {
-      return res.status(400).json({ message: 'Nome obrigatorio' });
+      return res.status(400).json({ message: 'Nome obrigatório' });
     }
 
     const clients = await model.getClientsByName(nome);

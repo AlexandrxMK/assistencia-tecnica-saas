@@ -652,6 +652,52 @@ textarea:focus {
   border: 1px solid #e2d4c0;
 }
 
+.public-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.7rem;
+}
+
+.public-photo-card {
+  margin: 0;
+  border: 1px solid #decdb7;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fffefb;
+}
+
+.public-photo-card img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+.public-photo-card figcaption {
+  font-size: 0.82rem;
+  color: #5f5446;
+  padding: 0.45rem 0.55rem;
+}
+
+.public-update-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.public-update-list li {
+  border: 1px solid #decdb7;
+  border-radius: 10px;
+  background: #fffef9;
+  padding: 0.65rem 0.75rem;
+}
+
+.public-update-list small {
+  color: #5f5446;
+}
+
 @keyframes rise-in {
   from {
     transform: translateY(8px);

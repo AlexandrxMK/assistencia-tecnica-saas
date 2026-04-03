@@ -24,7 +24,7 @@ function fromBase64Url(input) {
 
 function getTokenSecret() {
   if (!process.env.AUTH_TOKEN_SECRET) {
-    throw new Error('AUTH_TOKEN_SECRET nao configurado');
+    throw new Error('AUTH_TOKEN_SECRET não configurado');
   }
 
   return process.env.AUTH_TOKEN_SECRET;
@@ -113,7 +113,7 @@ function verifyAuthToken(token) {
   const [encodedHeader, encodedPayload, signature] = String(token || '').split('.');
 
   if (!encodedHeader || !encodedPayload || !signature) {
-    throw new Error('Token invalido');
+    throw new Error('Token inválido');
   }
 
   const content = `${encodedHeader}.${encodedPayload}`;
@@ -124,11 +124,11 @@ function verifyAuthToken(token) {
   const receivedSignature = fromBase64Url(signature);
 
   if (expectedSignature.length !== receivedSignature.length) {
-    throw new Error('Assinatura do token invalida');
+    throw new Error('Assinatura do token inválida');
   }
 
   if (!crypto.timingSafeEqual(expectedSignature, receivedSignature)) {
-    throw new Error('Assinatura do token invalida');
+    throw new Error('Assinatura do token inválida');
   }
 
   const payload = JSON.parse(fromBase64Url(encodedPayload).toString('utf8'));

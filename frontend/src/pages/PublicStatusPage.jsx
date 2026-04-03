@@ -3,8 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Panel, InlineMessage } from '../components/Ui';
 import { backendApi } from '../services/backendApi';
-import { extractApiError } from '../lib/api';
-import { formatDate } from '../lib/format';
+import { extractApiError, getAbsoluteFileUrl } from '../lib/api';
+import { formatDate, formatDateTime } from '../lib/format';
 
 export function PublicStatusPage() {
   const navigate = useNavigate();
@@ -12,6 +12,8 @@ export function PublicStatusPage() {
   const [orderId, setOrderId] = useState(params.id || '');
   const [status, setStatus] = useState({ type: '', text: '' });
   const [orderData, setOrderData] = useState(null);
+  const [photos, setPhotos] = useState([]);
+  const [updates, setUpdates] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const publicUrl = useMemo(
@@ -29,12 +31,21 @@ export function PublicStatusPage() {
     setStatus({ type: '', text: '' });
 
     try {
-      const response = await backendApi.os.getPublicStatus(targetOrderId);
-      setOrderData(response.data);
+      const [statusResponse, photosResponse, updatesResponse] = await Promise.all([
+        backendApi.os.getPublicStatus(targetOrderId),
+        backendApi.os.getPublicPhotos(targetOrderId),
+        backendApi.os.getPublicUpdates(targetOrderId)
+      ]);
+
+      setOrderData(statusResponse.data);
+      setPhotos(photosResponse.data?.photos || []);
+      setUpdates(updatesResponse.data?.updates || []);
       navigate(`/public/os/${targetOrderId}`, { replace: true });
       setStatus({ type: 'success', text: 'Status público carregado com sucesso.' });
     } catch (error) {
       setOrderData(null);
+      setPhotos([]);
+      setUpdates([]);
       setStatus({ type: 'error', text: extractApiError(error) });
     } finally {
       setIsLoading(false);
@@ -51,7 +62,6 @@ export function PublicStatusPage() {
     <div className="public-page">
       <Panel
         title="Consulta pública de OS"
-        subtitle="Acompanhe o status sem login e compartilhe via QR Code"
         actions={
           <button type="button" className="button button-ghost" onClick={() => navigate('/login')}>
             Voltar ao login
@@ -80,33 +90,73 @@ export function PublicStatusPage() {
         <InlineMessage type={status.type}>{status.text}</InlineMessage>
 
         {orderData ? (
-          <div className="public-grid">
-            <div className="public-card">
-              <h3>OS #{orderData.id_os}</h3>
-              <p>
-                <strong>Status:</strong> {orderData.status_os}
-              </p>
-              <p>
-                <strong>Abertura:</strong> {formatDate(orderData.data_abertura)}
-              </p>
-              <p>
-                <strong>Equipamento:</strong> {orderData.tipo} {orderData.marca} {orderData.modelo}
-              </p>
-              <p>
-                <strong>Problema:</strong> {orderData.descricao_problema}
-              </p>
+          <div className="page-stack">
+            <div className="public-grid">
+              <div className="public-card">
+                <h3>OS #{orderData.id_os}</h3>
+                <p>
+                  <strong>Status:</strong> {orderData.status_os}
+                </p>
+                <p>
+                  <strong>Abertura:</strong> {formatDate(orderData.data_abertura)}
+                </p>
+                <p>
+                  <strong>Equipamento:</strong> {orderData.tipo} {orderData.marca} {orderData.modelo}
+                </p>
+                <p>
+                  <strong>Problema:</strong> {orderData.descricao_problema}
+                </p>
+              </div>
+
+              <div className="public-card">
+                <h3>Compartilhar consulta</h3>
+                <p>Use o QR Code para abrir diretamente esta página de acompanhamento.</p>
+                {publicUrl ? (
+                  <>
+                    <div className="qr-wrapper">
+                      <QRCodeSVG value={publicUrl} size={180} includeMargin />
+                    </div>
+                    <p className="public-link">{publicUrl}</p>
+                  </>
+                ) : null}
+              </div>
             </div>
 
             <div className="public-card">
-              <h3>Compartilhar consulta</h3>
-              <p>Use o QR Code para abrir diretamente esta página de acompanhamento.</p>
-              {publicUrl ? (
-                <>
-                  <div className="qr-wrapper">
-                    <QRCodeSVG value={publicUrl} size={180} includeMargin />
-                  </div>
-                  <p className="public-link">{publicUrl}</p>
-                </>
+              <h3>Fotos do aparelho</h3>
+              {photos.length === 0 ? <p>Nenhuma foto registrada para esta OS.</p> : null}
+              {photos.length > 0 ? (
+                <div className="public-photo-grid">
+                  {photos.map((photo) => (
+                    <figure key={photo.id_foto} className="public-photo-card">
+                      <img
+                        src={getAbsoluteFileUrl(photo.url_arquivo)}
+                        alt={`Foto ${photo.id_foto}`}
+                      />
+                      <figcaption>{formatDateTime(photo.data_upload)}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="public-card">
+              <h3>Histórico de atualizações</h3>
+              {updates.length === 0 ? <p>Nenhuma atualização registrada ainda.</p> : null}
+              {updates.length > 0 ? (
+                <ul className="public-update-list">
+                  {updates.map((update, index) => (
+                    <li key={`${update.id_notificacao || 'opening'}-${index}`}>
+                      <p>
+                        <strong>{update.tipo}</strong>
+                      </p>
+                      <p>
+                        Canal: {update.canal || 'Sistema'} | Situação: {update.status_envio || 'Registrado'}
+                      </p>
+                      <small>{formatDateTime(update.data_envio)}</small>
+                    </li>
+                  ))}
+                </ul>
               ) : null}
             </div>
           </div>

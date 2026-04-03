@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
 const model = require('../models/osModel');
 const notificationModel = require('../models/notificationModel');
+const photoModel = require('../models/photoModel');
 const { sendStatusNotification } = require('../services/whatsappService');
 const { sendStatusEmailNotification } = require('../services/emailService');
 
@@ -8,12 +9,11 @@ const ALLOWED_STATUS = new Set([
   'Aberto',
   'Em Analise',
   'Em Analise Tecnica',
-  'Em Analise T\u00e9cnica',
   'Em Conserto',
   'Concluida',
-  'Conclu\u00edda',
   'Cancelada'
 ]);
+const DEFAULT_PUBLIC_OS_PAGE_BASE_URL = 'http://localhost:5173';
 
 const getAllOS = async (req, res) => {
   try {
@@ -29,7 +29,7 @@ const getOSById = async (req, res) => {
     const order = await model.getOSById(req.params.id);
 
     if (!order) {
-      return res.status(404).json({ message: 'OS nao encontrada' });
+      return res.status(404).json({ message: 'OS não encontrada' });
     }
 
     res.status(200).json(order);
@@ -56,14 +56,14 @@ async function registerNotificationLog({
   try {
     await notificationModel.createNotification({
       id_os: idOs,
-      tipo: `Mudanca de status para ${statusOs}`,
+      tipo: `Mudança de status para ${statusOs}`,
       data_envio: new Date(),
       status_envio: sent ? 'Enviado' : 'Falha',
       canal: channel
     });
   } catch (notificationLogError) {
     console.error(
-      `Falha ao registrar notificacao ${channel} no banco:`,
+      `Falha ao registrar notificação ${channel} no banco:`,
       notificationLogError.message
     );
   }
@@ -77,27 +77,62 @@ function normalizeStatusValue(value) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function resolveCanonicalStatus(value) {
+  const normalizedInput = normalizeStatusValue(value);
+
+  for (const status of ALLOWED_STATUS) {
+    if (normalizeStatusValue(status) === normalizedInput) {
+      return status;
+    }
+  }
+
+  return null;
+}
+
+function normalizeBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '');
+}
+
+function buildPublicStatusPageUrl(req, idOs) {
+  const configuredBaseUrl = normalizeBaseUrl(
+    process.env.PUBLIC_OS_PAGE_BASE_URL ||
+      process.env.FRONTEND_PUBLIC_URL ||
+      process.env.APP_PUBLIC_URL
+  );
+  const originHeaderUrl = normalizeBaseUrl(req.get('origin'));
+  const fallbackBaseUrl = normalizeBaseUrl(DEFAULT_PUBLIC_OS_PAGE_BASE_URL);
+  const baseUrl = configuredBaseUrl || originHeaderUrl || fallbackBaseUrl;
+
+  if (baseUrl.toLowerCase().endsWith('/public/os')) {
+    return `${baseUrl}/${idOs}`;
+  }
+
+  return `${baseUrl}/public/os/${idOs}`;
+}
+
 const patchStatusOs = async (req, res) => {
   try {
     const idOs = Number(req.params.id);
-    const newStatus = String(req.body?.status_os || '').trim();
+    const requestedStatus = String(req.body?.status_os || '').trim();
 
     if (!Number.isInteger(idOs) || idOs <= 0) {
-      return res.status(400).json({ message: 'ID da OS invalido' });
+      return res.status(400).json({ message: 'ID da OS inválido' });
     }
+
+    if (!requestedStatus) {
+      return res.status(400).json({ message: 'status_os é obrigatório' });
+    }
+
+    const newStatus = resolveCanonicalStatus(requestedStatus);
 
     if (!newStatus) {
-      return res.status(400).json({ message: 'status_os e obrigatorio' });
-    }
-
-    if (!ALLOWED_STATUS.has(newStatus)) {
-      return res.status(400).json({ message: 'status_os invalido' });
+      return res.status(400).json({ message: 'status_os inválido' });
     }
 
     const currentRow = await model.getOSById(idOs);
 
     if (!currentRow) {
-      return res.status(404).json({ message: 'OS nao encontrada' });
+      return res.status(404).json({ message: 'OS não encontrada' });
     }
 
     if (
@@ -105,27 +140,29 @@ const patchStatusOs = async (req, res) => {
       normalizeStatusValue(newStatus)
     ) {
       return res.status(409).json({
-        message: 'status_os ja esta definido com esse valor'
+        message: 'status_os já está definido com esse valor'
       });
     }
 
     const patchedRow = await model.patchStatusOs(idOs, newStatus);
 
     if (!patchedRow) {
-      return res.status(404).json({ message: 'OS nao encontrada' });
+      return res.status(404).json({ message: 'OS não encontrada' });
     }
 
     const context = await model.getStatusNotificationContext(idOs);
     const equipmentName = context
       ? `${context.tipo} ${context.marca} ${context.modelo}`.trim()
       : null;
+    const publicStatusUrl = buildPublicStatusPageUrl(req, idOs);
 
     const whatsappResult = await sendStatusNotification({
       phone: context?.telefone,
       clientName: context?.nome_cliente,
       osId: idOs,
       status: patchedRow.status_os,
-      equipment: equipmentName
+      equipment: equipmentName,
+      publicUrl: publicStatusUrl
     });
 
     await registerNotificationLog({
@@ -140,7 +177,8 @@ const patchStatusOs = async (req, res) => {
       clientName: context?.nome_cliente,
       osId: idOs,
       status: patchedRow.status_os,
-      equipment: equipmentName
+      equipment: equipmentName,
+      publicUrl: publicStatusUrl
     });
 
     await registerNotificationLog({
@@ -153,15 +191,18 @@ const patchStatusOs = async (req, res) => {
     return res.json({
       message: 'OS atualizada com sucesso',
       data: patchedRow,
+      public_status_url: publicStatusUrl,
       notification: {
         channel: 'WhatsApp',
         sent: whatsappResult.sent,
-        status: whatsappResult.status
+        status: whatsappResult.status,
+        public_url: publicStatusUrl
       },
       email_notification: {
         channel: 'Email',
         sent: emailResult.sent,
-        status: emailResult.status
+        status: emailResult.status,
+        public_url: publicStatusUrl
       }
     });
   } catch (err) {
@@ -174,7 +215,7 @@ const getPublicOS = async (req, res) => {
     const os = await model.getPublicOS(req.params.id);
 
     if (!os) {
-      return res.status(404).json({ message: 'OS nao encontrada' });
+      return res.status(404).json({ message: 'OS não encontrada' });
     }
 
     res.status(200).json(os);
@@ -183,18 +224,83 @@ const getPublicOS = async (req, res) => {
   }
 };
 
+const getPublicOSPhotos = async (req, res) => {
+  try {
+    const idOs = Number(req.params.id);
+
+    if (!Number.isInteger(idOs) || idOs <= 0) {
+      return res.status(400).json({ message: 'ID da OS inválido' });
+    }
+
+    const os = await model.getPublicOS(idOs);
+
+    if (!os) {
+      return res.status(404).json({ message: 'OS não encontrada' });
+    }
+
+    const photos = await photoModel.getPhotosByOS(idOs);
+
+    return res.status(200).json({
+      id_os: idOs,
+      photos
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+const getPublicOSUpdates = async (req, res) => {
+  try {
+    const idOs = Number(req.params.id);
+
+    if (!Number.isInteger(idOs) || idOs <= 0) {
+      return res.status(400).json({ message: 'ID da OS inválido' });
+    }
+
+    const os = await model.getOSById(idOs);
+
+    if (!os) {
+      return res.status(404).json({ message: 'OS não encontrada' });
+    }
+
+    const notificationRows = await notificationModel.getNotificationsByOS(idOs);
+
+    const openingEntry = {
+      id_notificacao: null,
+      id_os: idOs,
+      tipo: 'Abertura da OS',
+      data_envio: os.data_abertura,
+      status_envio: 'Registrado',
+      canal: 'Sistema'
+    };
+
+    const updates = [openingEntry, ...notificationRows].sort((left, right) => {
+      const leftDate = new Date(left.data_envio || 0).getTime();
+      const rightDate = new Date(right.data_envio || 0).getTime();
+      return rightDate - leftDate;
+    });
+
+    return res.status(200).json({
+      id_os: idOs,
+      updates
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 const getTotalValueOS = async (req, res) => {
   try {
     const getTotalValue = model.getTotalValueOs || model.getValorTotalOs;
 
     if (!getTotalValue) {
-      return res.status(500).json({ message: 'Funcao de total da OS nao disponivel' });
+      return res.status(500).json({ message: 'Função de total da OS não disponível' });
     }
 
     const data = await getTotalValue(req.params.id);
 
     if (!data) {
-      return res.status(404).json({ message: 'OS nao encontrada' });
+      return res.status(404).json({ message: 'OS não encontrada' });
     }
 
     res.json({ data });
@@ -208,7 +314,7 @@ const generatePDF = async (req, res) => {
     const data = await model.getOSFull(req.params.id);
 
     if (data.length === 0) {
-      return res.status(404).json({ message: 'OS nao encontrada' });
+      return res.status(404).json({ message: 'OS não encontrada' });
     }
 
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -225,7 +331,7 @@ const generatePDF = async (req, res) => {
     doc.fillColor('#ffffff')
       .fontSize(22)
       .font('Helvetica-Bold')
-      .text('ORDEM DE SERVICO', 50, 25, { align: 'left' });
+      .text('ORDEM DE SERVIÇO', 50, 25, { align: 'left' });
 
     doc.fontSize(13)
       .font('Helvetica')
@@ -267,7 +373,7 @@ const generatePDF = async (req, res) => {
     doc.fillColor('#1a73e8')
       .fontSize(11)
       .font('Helvetica-Bold')
-      .text('PECAS UTILIZADAS', 60, y2 + 8);
+      .text('PEÇAS UTILIZADAS', 60, y2 + 8);
 
     const tableTop = y2 + 38;
     const colDesc = 50;
@@ -303,7 +409,7 @@ const generatePDF = async (req, res) => {
     if (pecas.length === 0) {
       doc.rect(50, currentY, pageWidth, 20).fill('#ffffff').stroke('#e0e6f0');
       doc.fillColor('#999999').font('Helvetica-Oblique').fontSize(9)
-        .text('Nenhuma peca registrada.', colDesc + 5, currentY + 5);
+        .text('Nenhuma peça registrada.', colDesc + 5, currentY + 5);
       currentY += 20;
     }
 
@@ -311,7 +417,7 @@ const generatePDF = async (req, res) => {
 
     doc.rect(50, totalY, pageWidth, 22).fill('#f0f4ff').stroke('#d0d8f0');
     doc.fillColor('#333333').font('Helvetica').fontSize(10)
-      .text('Mao de obra:', colDesc + 5, totalY + 6);
+      .text('Mão de obra:', colDesc + 5, totalY + 6);
     doc.font('Helvetica-Bold')
       .text(`R$ ${Number(os.valor_mao_obra).toFixed(2)}`, 0, totalY + 6, {
         align: 'right',
@@ -329,7 +435,7 @@ const generatePDF = async (req, res) => {
     const footerY = doc.page.height - 50;
     doc.rect(0, footerY, doc.page.width, 50).fill('#f5f5f5');
     doc.fillColor('#999999').font('Helvetica').fontSize(8)
-      .text('Documento gerado automaticamente pelo sistema de gestao de OS.', 50, footerY + 18, {
+      .text('Documento gerado automaticamente pelo sistema de gestão de OS.', 50, footerY + 18, {
         align: 'center',
         width: pageWidth
       });
@@ -346,6 +452,8 @@ module.exports = {
   createOS,
   patchStatusOs,
   getPublicOS,
+  getPublicOSPhotos,
+  getPublicOSUpdates,
   getTotalValueOS,
   generatePDF
 };

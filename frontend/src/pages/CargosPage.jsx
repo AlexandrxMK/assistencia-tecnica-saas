@@ -11,6 +11,12 @@ const initialForm = {
 
 const managerRoles = new Set(['admin', 'gerente']);
 
+function formatAccessLevelLabel(level) {
+  const normalizedLevel = String(level || '').trim().toLowerCase();
+  if (normalizedLevel === 'tecnico') return 'técnico';
+  return normalizedLevel || '-';
+}
+
 export function CargosPage() {
   const { user } = useAuth();
   const [cargos, setCargos] = useState([]);
@@ -91,7 +97,7 @@ export function CargosPage() {
             >
               <option value="admin">admin</option>
               <option value="gerente">gerente</option>
-              <option value="tecnico">tecnico</option>
+              <option value="tecnico">técnico</option>
             </select>
           </label>
 
@@ -127,7 +133,7 @@ export function CargosPage() {
                   <tr key={cargo.id_cargo}>
                     <td>{cargo.id_cargo}</td>
                     <td>{cargo.nome_cargo}</td>
-                    <td>{cargo.nivel_acesso}</td>
+                    <td>{formatAccessLevelLabel(cargo.nivel_acesso)}</td>
                   </tr>
                 ))}
               </tbody>

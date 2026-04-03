@@ -7,19 +7,19 @@ async function login(req, res) {
     const password = String(req.body?.password || '');
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email e senha sao obrigatorios' });
+      return res.status(400).json({ message: 'Email e senha são obrigatórios' });
     }
 
     const employee = await model.getEmployeeAuthByEmail(email);
 
     if (!employee) {
-      return res.status(401).json({ message: 'Credenciais invalidas' });
+      return res.status(401).json({ message: 'Credenciais inválidas' });
     }
 
     const passwordCheck = await verifyPassword(password, employee.senha_hash);
 
     if (!passwordCheck.matched) {
-      return res.status(401).json({ message: 'Credenciais invalidas' });
+      return res.status(401).json({ message: 'Credenciais inválidas' });
     }
 
     if (passwordCheck.needsUpgrade) {
@@ -47,7 +47,7 @@ async function getCurrentUser(req, res) {
     const employee = await model.getEmployeeById(req.auth.sub);
 
     if (!employee) {
-      return res.status(404).json({ message: 'Usuario autenticado nao encontrado' });
+      return res.status(404).json({ message: 'Usuário autenticado não encontrado' });
     }
 
     return res.status(200).json(employee);
@@ -61,7 +61,7 @@ async function bootstrapAdmin(req, res) {
     const employeeCount = await model.countEmployees();
 
     if (employeeCount > 0) {
-      return res.status(403).json({ message: 'Bootstrap disponivel apenas sem usuarios cadastrados' });
+      return res.status(403).json({ message: 'Bootstrap disponível apenas sem usuários cadastrados' });
     }
 
     const employee = await model.createEmployee({

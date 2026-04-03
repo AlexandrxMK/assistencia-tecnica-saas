@@ -14,6 +14,12 @@ const initialForm = {
 
 const managerRoles = new Set(['admin', 'gerente']);
 
+function formatAccessLevelLabel(level) {
+  const normalizedLevel = String(level || '').trim().toLowerCase();
+  if (normalizedLevel === 'tecnico') return 'técnico';
+  return normalizedLevel || '-';
+}
+
 export function EmployeesPage() {
   const { user } = useAuth();
   const [employees, setEmployees] = useState([]);
@@ -175,7 +181,7 @@ export function EmployeesPage() {
             >
               <option value="admin">admin</option>
               <option value="gerente">gerente</option>
-              <option value="tecnico">tecnico</option>
+              <option value="tecnico">técnico</option>
             </select>
           </label>
 
@@ -234,7 +240,7 @@ export function EmployeesPage() {
                     <td>{employee.id_funcionario}</td>
                     <td>{employee.nome}</td>
                     <td>{employee.email}</td>
-                    <td>{employee.nivel_acesso}</td>
+                    <td>{formatAccessLevelLabel(employee.nivel_acesso)}</td>
                     <td>{employee.id_cargo || '-'}</td>
                     <td>
                       <div className="table-actions">

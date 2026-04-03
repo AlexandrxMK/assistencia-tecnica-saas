@@ -18,7 +18,7 @@ const getEquipmentById = async (req, res) => {
     const equipment = await model.getEquipmentById(req.params.id);
 
     if (!equipment)
-      return res.status(404).json({ message: 'Equipamento nao encontrado' });
+      return res.status(404).json({ message: 'Equipamento não encontrado' });
 
     res.status(200).json(equipment);
   } catch (err) {
@@ -31,13 +31,13 @@ const createEquipment = async (req, res) => {
     const serial = normalizeSerial(req.body?.serial);
 
     if (!serial) {
-      return res.status(400).json({ message: 'Serial obrigatorio para cadastrar equipamento' });
+      return res.status(400).json({ message: 'Serial obrigatório para cadastrar equipamento' });
     }
 
     const existingEquipment = await model.getEquipmentBySerial(serial);
 
     if (existingEquipment) {
-      return res.status(409).json({ message: 'Ja existe um equipamento com esse serial' });
+      return res.status(409).json({ message: 'Já existe um equipamento com esse serial' });
     }
 
     const equipment = await model.createEquipment({
@@ -55,13 +55,13 @@ const updateEquipment = async (req, res) => {
     const serial = normalizeSerial(req.body?.serial);
 
     if (!serial) {
-      return res.status(400).json({ message: 'Serial obrigatorio para atualizar equipamento' });
+      return res.status(400).json({ message: 'Serial obrigatório para atualizar equipamento' });
     }
 
     const existingEquipment = await model.getEquipmentBySerial(serial);
 
     if (existingEquipment && String(existingEquipment.id_equipamento) !== String(req.params.id)) {
-      return res.status(409).json({ message: 'Ja existe um equipamento com esse serial' });
+      return res.status(409).json({ message: 'Já existe um equipamento com esse serial' });
     }
 
     const updated = await model.updateEquipment(req.params.id, {
@@ -70,7 +70,7 @@ const updateEquipment = async (req, res) => {
     });
 
     if (!updated)
-      return res.status(404).json({ message: 'Equipamento nao encontrado' });
+      return res.status(404).json({ message: 'Equipamento não encontrado' });
 
     res.json({
       message: 'Equipamento atualizado com sucesso',
@@ -86,7 +86,7 @@ const deleteEquipment = async (req, res) => {
     const deleted = await model.deleteEquipment(req.params.id);
 
     if (!deleted)
-      return res.status(404).json({ message: 'Equipamento nao encontrado' });
+      return res.status(404).json({ message: 'Equipamento não encontrado' });
 
     res.json({ message: 'Equipamento removido', deleted });
   } catch (err) {
@@ -99,7 +99,7 @@ const getHistoryById = async (req, res) => {
     const history = await model.getHistoryById(req.params.id);
 
     if (!history || history.length === 0) {
-      return res.status(404).json({ message: 'Nao ha historico para esse equipamento' });
+      return res.status(404).json({ message: 'Não há histórico para esse equipamento' });
     }
 
     return res.json({ history });
@@ -113,13 +113,13 @@ const getHistoryBySerial = async (req, res) => {
     const serial = String(req.params.serial || '').trim();
 
     if (!serial) {
-      return res.status(400).json({ message: 'Serial obrigatorio' });
+      return res.status(400).json({ message: 'Serial obrigatório' });
     }
 
     const history = await model.getHistoryBySerial(serial);
 
     if (!history || history.length === 0) {
-      return res.status(404).json({ message: 'Nao ha historico para esse serial' });
+      return res.status(404).json({ message: 'Não há histórico para esse serial' });
     }
 
     return res.json({ history });

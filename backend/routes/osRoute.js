@@ -4,6 +4,8 @@ const controller = require('../controllers/osController');
 const { authenticate } = require('../middleware/authMiddleware');
 
 router.get('/:id/status', controller.getPublicOS);
+router.get('/:id/photos', controller.getPublicOSPhotos);
+router.get('/:id/updates', controller.getPublicOSUpdates);
 
 router.use(authenticate);
 router.get('/', controller.getAllOS);

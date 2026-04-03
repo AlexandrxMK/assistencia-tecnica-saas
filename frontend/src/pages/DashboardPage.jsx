@@ -62,19 +62,19 @@ export function DashboardPage() {
 
   const metrics = [
     {
-      label: 'Receita Confirmada',
+      label: 'Receita confirmada',
       value: formatCurrency(snapshot.totalRevenue)
     },
     {
-      label: 'Ticket Médio',
+      label: 'Ticket médio',
       value: formatCurrency(snapshot.averageTicket)
     },
     {
-      label: 'OS em Aberto',
+      label: 'OS em aberto',
       value: snapshot.ordersSummary?.open ?? 0
     },
     {
-      label: 'OS Concluídas',
+      label: 'OS concluídas',
       value: snapshot.ordersSummary?.completed ?? 0
     }
   ];
@@ -93,10 +93,7 @@ export function DashboardPage() {
       <InlineMessage type="error">{error}</InlineMessage>
 
       <div className="two-column-grid">
-        <Panel
-          title="Ordens recentes"
-          subtitle="Aberturas mais novas do sistema"
-        >
+        <Panel title="Ordens recentes">
           {isLoading ? <p>Carregando dados...</p> : null}
 
           {!isLoading && snapshot.latestOrders.length === 0 ? (
@@ -127,7 +124,7 @@ export function DashboardPage() {
           ) : null}
         </Panel>
 
-        <Panel title="Status das OS" subtitle="Distribuição atual por fase">
+        <Panel title="Status das OS">
           {snapshot.ordersByStatus.length === 0 ? (
             <EmptyState>Sem dados de status para exibir.</EmptyState>
           ) : (
@@ -143,10 +140,7 @@ export function DashboardPage() {
         </Panel>
       </div>
 
-      <Panel
-        title="Receita mensal"
-        subtitle="Somatório de pagamentos confirmados por mês"
-      >
+      <Panel title="Receita mensal">
         {snapshot.monthlyRevenue.length === 0 ? (
           <EmptyState>Sem pagamentos confirmados ainda.</EmptyState>
         ) : (

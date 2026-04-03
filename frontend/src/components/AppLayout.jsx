@@ -16,6 +16,16 @@ const navItems = [
   { path: '/relatorios', label: 'Relatórios' }
 ];
 
+function formatAccessLevelLabel(level) {
+  const normalizedLevel = String(level || '').trim().toLowerCase();
+
+  if (!normalizedLevel || normalizedLevel === 'tecnico') {
+    return 'técnico';
+  }
+
+  return normalizedLevel;
+}
+
 export function AppLayout() {
   const { logout, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -48,7 +58,7 @@ export function AppLayout() {
 
         <div className="sidebar-footer">
           <p>{user?.nome || 'Usuário autenticado'}</p>
-          <small>Nível: {user?.nivel_acesso || 'tecnico'}</small>
+          <small>Nível: {formatAccessLevelLabel(user?.nivel_acesso)}</small>
           <button type="button" className="button button-ghost" onClick={logout}>
             Sair
           </button>
@@ -66,7 +76,6 @@ export function AppLayout() {
           </button>
           <div>
             <h1>Central de Gestão</h1>
-            <p>Operação integrada com API e rotinas de OS</p>
           </div>
         </header>
 

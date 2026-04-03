@@ -36,17 +36,28 @@ function buildStatusMessage({
   clientName,
   osId,
   status,
-  equipment
+  equipment,
+  publicUrl
 }) {
   const safeClientName = clientName || 'Cliente';
-  const safeStatus = status || 'atualizado';
+  const safeStatus = status || 'Atualizado';
   const safeEquipment = equipment || 'seu equipamento';
+  const safePublicUrl = publicUrl || null;
 
-  return [
-    `Ola, ${safeClientName}.`,
-    `A OS #${osId} (${safeEquipment}) foi atualizada para: ${safeStatus}.`,
-    'Em caso de duvidas, entre em contato com a assistencia.'
-  ].join('\n');
+  const lines = [
+    `Olá, ${safeClientName}!`,
+    '',
+    `Temos uma nova atualização da sua ordem de serviço #${osId}.`,
+    `Equipamento: ${safeEquipment}`,
+    `Status atual: ${safeStatus}`,
+    '',
+    safePublicUrl
+      ? `Acompanhe sua OS em tempo real: ${safePublicUrl} `
+      : 'Acompanhe sua OS pelo nosso canal de atendimento.',
+    'Se precisar de ajuda, é só responder esta mensagem.'
+  ];
+
+  return lines.join('\n');
 }
 
 async function sendStatusNotification({
@@ -54,7 +65,8 @@ async function sendStatusNotification({
   clientName,
   osId,
   status,
-  equipment
+  equipment,
+  publicUrl
 }) {
   const normalizedPhone = normalizePhone(phone);
 
@@ -62,12 +74,18 @@ async function sendStatusNotification({
     return {
       sent: false,
       status: 'invalid_phone',
-      details: 'Telefone do cliente invalido ou ausente'
+      details: 'Telefone do cliente inválido ou ausente'
     };
   }
 
   if (WHATSAPP_SIMULATION_MODE) {
-    const simulatedMessage = buildStatusMessage({ clientName, osId, status, equipment });
+    const simulatedMessage = buildStatusMessage({
+      clientName,
+      osId,
+      status,
+      equipment,
+      publicUrl
+    });
     const simulatedMessageId = `simulated_${Date.now()}`;
 
     console.log('simulação whatsapp', {
@@ -89,7 +107,7 @@ async function sendStatusNotification({
     return {
       sent: false,
       status: 'not_configured',
-      details: 'WhatsApp API nao configurada'
+      details: 'WhatsApp API não configurada'
     };
   }
 
@@ -99,8 +117,8 @@ async function sendStatusNotification({
     to: normalizedPhone,
     type: 'text',
     text: {
-      preview_url: false,
-      body: buildStatusMessage({ clientName, osId, status, equipment })
+      preview_url: Boolean(publicUrl),
+      body: buildStatusMessage({ clientName, osId, status, equipment, publicUrl })
     }
   };
 

@@ -19,6 +19,27 @@ async function createNotification({
   return rows[0];
 }
 
+async function getNotificationsByOS(id_os) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      id_notificacao,
+      id_os,
+      tipo,
+      data_envio,
+      status_envio,
+      canal
+    FROM notificacao
+    WHERE id_os = $1
+    ORDER BY data_envio DESC NULLS LAST, id_notificacao DESC
+    `,
+    [id_os]
+  );
+
+  return rows;
+}
+
 module.exports = {
-  createNotification
+  createNotification,
+  getNotificationsByOS
 };

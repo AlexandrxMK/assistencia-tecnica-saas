@@ -5,8 +5,8 @@ const EMAIL_GMAIL_USER = process.env.EMAIL_GMAIL_USER || null;
 const EMAIL_GMAIL_APP_PASSWORD = process.env.EMAIL_GMAIL_APP_PASSWORD || null;
 const EMAIL_FROM = process.env.EMAIL_FROM || (
   EMAIL_GMAIL_USER
-    ? `Assistencia Tecnica <${EMAIL_GMAIL_USER}>`
-    : 'Assistencia Tecnica <no-reply@assistencia.local>'
+    ? `Assistência Técnica <${EMAIL_GMAIL_USER}>`
+    : 'Assistência Técnica <no-reply@assistencia.local>'
 );
 
 let transporterPromise = null;
@@ -35,18 +35,26 @@ function buildStatusEmailText({
   clientName,
   osId,
   status,
-  equipment
+  equipment,
+  publicUrl
 }) {
   const safeClientName = clientName || 'Cliente';
-  const safeStatus = status || 'atualizado';
+  const safeStatus = status || 'Atualizado';
   const safeEquipment = equipment || 'seu equipamento';
+  const safePublicUrl = publicUrl || null;
 
   return [
-    `Ola, ${safeClientName}.`,
+    `Olá, ${safeClientName}!`,
     '',
-    `A OS #${osId} (${safeEquipment}) foi atualizada para: ${safeStatus}.`,
+    `A ordem de serviço #${osId} recebeu uma nova atualização.`,
+    `Equipamento: ${safeEquipment}`,
+    `Status atual: ${safeStatus}`,
     '',
-    'Em caso de duvidas, entre em contato com a assistencia.'
+    safePublicUrl
+      ? `Acompanhe sua OS pelo link público: ${safePublicUrl}`
+      : 'Acompanhe sua OS pelo nosso canal de atendimento.',
+    '',
+    'Se precisar de ajuda, basta responder este email.'
   ].join('\n');
 }
 
@@ -54,27 +62,49 @@ function buildStatusEmailHtml({
   clientName,
   osId,
   status,
-  equipment
+  equipment,
+  publicUrl
 }) {
   const safeClientName = escapeHtml(clientName || 'Cliente');
-  const safeStatus = escapeHtml(status || 'atualizado');
+  const safeStatus = escapeHtml(status || 'Atualizado');
   const safeEquipment = escapeHtml(equipment || 'seu equipamento');
+  const safePublicUrl = String(publicUrl || '').trim();
+  const escapedPublicUrl = safePublicUrl ? escapeHtml(safePublicUrl) : '';
+  const hasPublicUrl = Boolean(safePublicUrl);
 
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222;">
-      <p>Ola, <strong>${safeClientName}</strong>.</p>
+      <p>Olá, <strong>${safeClientName}</strong>!</p>
       <p>
-        A OS <strong>#${osId}</strong> (${safeEquipment}) foi atualizada para:
-        <strong>${safeStatus}</strong>.
+        A ordem de serviço <strong>#${osId}</strong> recebeu uma nova atualização.
       </p>
-      <p>Em caso de duvidas, entre em contato com a assistencia.</p>
+      <p><strong>Equipamento:</strong> ${safeEquipment}</p>
+      <p><strong>Status atual:</strong> ${safeStatus}</p>
+      ${
+        hasPublicUrl
+          ? `
+      <p>
+        <a
+          href="${escapedPublicUrl}"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="display:inline-block;padding:10px 16px;background:#1f7a5a;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;"
+        >
+          Ver página pública da OS
+        </a>
+      </p>
+      <p style="font-size:12px;color:#666;word-break:break-all;">${escapedPublicUrl}</p>
+      `
+          : ''
+      }
+      <p>Se precisar de ajuda, basta responder este email.</p>
     </div>
   `;
 }
 
 async function createTransporter() {
   if (!EMAIL_GMAIL_USER || !EMAIL_GMAIL_APP_PASSWORD) {
-    const error = new Error('Gmail SMTP nao configurado');
+    const error = new Error('Gmail SMTP não configurado');
     error.code = 'GMAIL_NOT_CONFIGURED';
     throw error;
   }
@@ -103,7 +133,8 @@ async function sendStatusEmailNotification({
   clientName,
   osId,
   status,
-  equipment
+  equipment,
+  publicUrl
 }) {
   if (!EMAIL_ENABLED) {
     return {
@@ -118,15 +149,15 @@ async function sendStatusEmailNotification({
     return {
       sent: false,
       status: 'invalid_email',
-      details: 'Email do cliente invalido ou ausente'
+      details: 'Email do cliente inválido ou ausente'
     };
   }
 
   try {
     const transporter = await getTransporter();
-    const subject = `Atualizacao da OS #${osId}`;
-    const text = buildStatusEmailText({ clientName, osId, status, equipment });
-    const html = buildStatusEmailHtml({ clientName, osId, status, equipment });
+    const subject = `OS #${osId} atualizada para ${status || 'novo status'}`;
+    const text = buildStatusEmailText({ clientName, osId, status, equipment, publicUrl });
+    const html = buildStatusEmailHtml({ clientName, osId, status, equipment, publicUrl });
 
     const info = await transporter.sendMail({
       from: EMAIL_FROM,

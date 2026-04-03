@@ -74,9 +74,6 @@ export function AuthPage() {
       <div className="auth-card">
         <p className="auth-kicker">Assistência Técnica SaaS</p>
         <h1>{title}</h1>
-        <p className="auth-subtitle">
-          Interface web integrada com clientes, OS, financeiro, peças e notificações.
-        </p>
 
         {!isBootstrapMode ? (
           <form className="form-stack" onSubmit={handleLoginSubmit}>

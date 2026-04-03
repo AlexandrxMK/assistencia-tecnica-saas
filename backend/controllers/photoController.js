@@ -23,11 +23,11 @@ const uploadPhoto = async (req, res) => {
     const idOs = Number(req.body?.id_os);
 
     if (!Number.isInteger(idOs) || idOs <= 0) {
-      return res.status(400).json({ message: 'id_os obrigatorio para upload' });
+      return res.status(400).json({ message: 'id_os obrigatório para upload' });
     }
 
     if (!req.file) {
-      return res.status(400).json({ message: 'Arquivo de imagem obrigatorio' });
+      return res.status(400).json({ message: 'Arquivo de imagem obrigatório' });
     }
 
     const photo = await model.createPhoto({

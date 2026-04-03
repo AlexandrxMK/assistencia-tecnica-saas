@@ -5,7 +5,7 @@ function authenticate(req, res, next) {
     const authorizationHeader = req.headers.authorization || '';
 
     if (!authorizationHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Autenticacao obrigatoria' });
+      return res.status(401).json({ message: 'Autenticação obrigatória' });
     }
 
     const token = authorizationHeader.slice(7).trim();
@@ -14,7 +14,7 @@ function authenticate(req, res, next) {
     req.auth = payload;
     return next();
   } catch (error) {
-    return res.status(401).json({ message: 'Token invalido ou expirado' });
+    return res.status(401).json({ message: 'Token inválido ou expirado' });
   }
 }
 
@@ -23,7 +23,7 @@ function authorizeRoles(...allowedRoles) {
 
   return (req, res, next) => {
     if (!req.auth) {
-      return res.status(401).json({ message: 'Autenticacao obrigatoria' });
+      return res.status(401).json({ message: 'Autenticação obrigatória' });
     }
 
     const userRole = normalizeAccessLevel(req.auth.nivel_acesso);

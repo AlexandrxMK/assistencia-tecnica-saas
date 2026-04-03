@@ -28,6 +28,8 @@ export const backendApi = {
     create: (payload) => api.post('/os', payload),
     patchStatus: (id, payload) => api.patch(`/os/${id}/status`, payload),
     getPublicStatus: (id) => api.get(`/os/${id}/status`),
+    getPublicPhotos: (id) => api.get(`/os/${id}/photos`),
+    getPublicUpdates: (id) => api.get(`/os/${id}/updates`),
     generatePdf: (id) => api.get(`/os/${id}/pdf`, { responseType: 'blob' })
   },
   payment: {
