@@ -13,6 +13,34 @@ const getAllEquipments = async (req, res) => {
   }
 };
 
+const getEquipmentsByFilters = async (req, res) => {
+  try {
+    const idEquipamento = Number(req.query?.id_equipamento);
+    const idCliente = Number(req.query?.id_cliente);
+
+    if (req.query?.id_equipamento && (!Number.isInteger(idEquipamento) || idEquipamento <= 0)) {
+      return res.status(400).json({ message: 'id_equipamento invalido' });
+    }
+
+    if (req.query?.id_cliente && (!Number.isInteger(idCliente) || idCliente <= 0)) {
+      return res.status(400).json({ message: 'id_cliente invalido' });
+    }
+
+    const equipments = await model.getEquipmentsByFilters({
+      id_equipamento: Number.isInteger(idEquipamento) && idEquipamento > 0 ? idEquipamento : null,
+      id_cliente: Number.isInteger(idCliente) && idCliente > 0 ? idCliente : null,
+      tipo: String(req.query?.tipo || '').trim() || null,
+      marca: String(req.query?.marca || '').trim() || null,
+      modelo: String(req.query?.modelo || '').trim() || null,
+      serial: String(req.query?.serial || '').trim() || null
+    });
+
+    return res.status(200).json(equipments);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 const getEquipmentById = async (req, res) => {
   try {
     const equipment = await model.getEquipmentById(req.params.id);
@@ -130,6 +158,7 @@ const getHistoryBySerial = async (req, res) => {
 
 module.exports = {
   getAllEquipments,
+  getEquipmentsByFilters,
   getEquipmentById,
   createEquipment,
   updateEquipment,

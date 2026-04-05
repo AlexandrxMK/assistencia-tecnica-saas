@@ -72,7 +72,9 @@ async function getOrdersSummary() {
   const { rows } = await pool.query(`
     SELECT 
       COUNT(*) FILTER (WHERE status_os = 'Aberto') AS open,
-      COUNT(*) FILTER (WHERE status_os = 'Concluida') AS completed,
+      COUNT(*) FILTER (
+        WHERE status_os IN ('Concluido', 'Concluida')
+      ) AS completed,
       COUNT(*) AS total
     FROM os
   `);

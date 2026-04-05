@@ -8,12 +8,17 @@ const { sendStatusEmailNotification } = require('../services/emailService');
 const ALLOWED_STATUS = new Set([
   'Aberto',
   'Em Analise',
-  'Em Analise Tecnica',
-  'Em Conserto',
-  'Concluida',
-  'Cancelada'
+  'Aguardando Peca',
+  'Concluido'
+]);
+const LEGACY_STATUS_ALIASES = new Map([
+  ['em analise tecnica', 'Em Analise'],
+  ['em conserto', 'Aguardando Peca'],
+  ['concluida', 'Concluido']
 ]);
 const DEFAULT_PUBLIC_OS_PAGE_BASE_URL = 'http://localhost:5173';
+const STATUS_AUDIT_CHANNEL = 'AUDITORIA_STATUS';
+const STATUS_AUDIT_PREFIX = 'STATUS|';
 
 const getAllOS = async (req, res) => {
   try {
@@ -21,6 +26,63 @@ const getAllOS = async (req, res) => {
     res.status(200).json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+const getOSByFilters = async (req, res) => {
+  try {
+    const idOs = Number(req.query?.id_os);
+    const idEquipamento = Number(req.query?.id_equipamento);
+    const idFuncionario = Number(req.query?.id_funcionario);
+    const requestedStatus = String(req.query?.status_os || '').trim();
+    const hasDataFrom = Boolean(req.query?.data_from);
+    const hasDataTo = Boolean(req.query?.data_to);
+    const dataFrom = hasDataFrom ? new Date(req.query.data_from) : null;
+    const dataTo = hasDataTo ? new Date(req.query.data_to) : null;
+
+    if (req.query?.id_os && (!Number.isInteger(idOs) || idOs <= 0)) {
+      return res.status(400).json({ message: 'id_os invalido' });
+    }
+
+    if (req.query?.id_equipamento && (!Number.isInteger(idEquipamento) || idEquipamento <= 0)) {
+      return res.status(400).json({ message: 'id_equipamento invalido' });
+    }
+
+    if (req.query?.id_funcionario && (!Number.isInteger(idFuncionario) || idFuncionario <= 0)) {
+      return res.status(400).json({ message: 'id_funcionario invalido' });
+    }
+
+    if (hasDataFrom && Number.isNaN(dataFrom?.getTime())) {
+      return res.status(400).json({ message: 'data_from invalida' });
+    }
+
+    if (hasDataTo && Number.isNaN(dataTo?.getTime())) {
+      return res.status(400).json({ message: 'data_to invalida' });
+    }
+
+    let statusOs = null;
+    if (requestedStatus) {
+      statusOs = resolveCanonicalStatus(requestedStatus);
+      if (!statusOs) {
+        return res.status(400).json({ message: 'status_os invalido' });
+      }
+    }
+
+    const orders = await model.getOSByFilters({
+      id_os: Number.isInteger(idOs) && idOs > 0 ? idOs : null,
+      status_os: statusOs,
+      id_equipamento: Number.isInteger(idEquipamento) && idEquipamento > 0 ? idEquipamento : null,
+      id_funcionario: Number.isInteger(idFuncionario) && idFuncionario > 0 ? idFuncionario : null,
+      data_from: dataFrom,
+      data_to: dataTo,
+      descricao_problema: String(req.query?.descricao_problema || '').trim() || null,
+      serial: String(req.query?.serial || '').trim() || null,
+      cliente_nome: String(req.query?.cliente_nome || '').trim() || null
+    });
+
+    return res.status(200).json(orders);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
@@ -40,7 +102,26 @@ const getOSById = async (req, res) => {
 
 const createOS = async (req, res) => {
   try {
-    const order = await model.createOS(req.body);
+    const requestedStatus = String(req.body?.status_os || 'Aberto').trim() || 'Aberto';
+    const status = resolveCanonicalStatus(requestedStatus);
+
+    if (!status) {
+      return res.status(400).json({ message: 'status_os invalido' });
+    }
+
+    const order = await model.createOS({
+      ...req.body,
+      status_os: status
+    });
+
+    await registerStatusHistoryLog({
+      idOs: order.id_os,
+      previousStatus: null,
+      newStatus: order.status_os,
+      actorId: req.auth?.sub || order.id_funcionario || null,
+      origin: 'abertura'
+    });
+
     res.status(201).json(order);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -69,6 +150,191 @@ async function registerNotificationLog({
   }
 }
 
+function encodeAuditValue(value) {
+  return String(value || '').replace(/\|/g, '/');
+}
+
+function decodeAuditValue(value) {
+  const rawValue = String(value || '').trim();
+  return rawValue === 'NULL' ? null : rawValue;
+}
+
+function buildStatusAuditType({
+  previousStatus,
+  newStatus,
+  actorId,
+  origin
+}) {
+  const previous = previousStatus ? encodeAuditValue(previousStatus) : 'NULL';
+  const next = newStatus ? encodeAuditValue(newStatus) : 'NULL';
+  const actor = actorId ? String(actorId) : 'NULL';
+  const source = origin ? encodeAuditValue(origin) : 'sistema';
+
+  return `${STATUS_AUDIT_PREFIX}${previous}|${next}|${actor}|${source}`;
+}
+
+function parseStatusAuditType(tipo) {
+  const rawType = String(tipo || '');
+
+  if (!rawType.startsWith(STATUS_AUDIT_PREFIX)) {
+    return null;
+  }
+
+  const payload = rawType.slice(STATUS_AUDIT_PREFIX.length).split('|');
+
+  if (payload.length < 4) {
+    return null;
+  }
+
+  const [previousStatusRaw, newStatusRaw, actorIdRaw, originRaw] = payload;
+  const parsedActorId = decodeAuditValue(actorIdRaw);
+  const actorId = parsedActorId ? Number(parsedActorId) : null;
+
+  return {
+    status_anterior: decodeAuditValue(previousStatusRaw),
+    status_novo: decodeAuditValue(newStatusRaw),
+    id_funcionario: Number.isInteger(actorId) && actorId > 0 ? actorId : null,
+    origem: decodeAuditValue(originRaw) || 'sistema'
+  };
+}
+
+function mapStatusHistoryRows(notificationRows) {
+  return notificationRows
+    .filter((row) => row.canal === STATUS_AUDIT_CHANNEL)
+    .map((row) => {
+      const parsed = parseStatusAuditType(row.tipo);
+
+      if (!parsed || !parsed.status_novo) {
+        return null;
+      }
+
+      return {
+        id_historico: row.id_notificacao,
+        id_os: row.id_os,
+        status_anterior: parsed.status_anterior,
+        status_novo: parsed.status_novo,
+        id_funcionario: parsed.id_funcionario,
+        origem: parsed.origem,
+        data_alteracao: row.data_envio
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const leftDate = new Date(left.data_alteracao || 0).getTime();
+      const rightDate = new Date(right.data_alteracao || 0).getTime();
+      return rightDate - leftDate;
+    });
+}
+
+function buildStatusUpdatePreview(historyRows) {
+  return historyRows.map((entry) => {
+    const isInitialStatus = !entry.status_anterior;
+
+    return {
+      id_notificacao: entry.id_historico,
+      id_os: entry.id_os,
+      tipo_evento: isInitialStatus ? 'Inicial' : 'Mudanca',
+      tipo: isInitialStatus
+        ? `Status inicial: ${entry.status_novo}`
+        : `Status alterado: ${entry.status_anterior} -> ${entry.status_novo}`,
+      data_envio: entry.data_alteracao,
+      status_envio: isInitialStatus ? 'Inicial' : 'Registrado',
+      canal: 'Historico de Status',
+      status_anterior: entry.status_anterior,
+      status_novo: entry.status_novo,
+      id_funcionario: entry.id_funcionario,
+      origem: entry.origem
+    };
+  });
+}
+
+function buildFallbackStatusHistory(os) {
+  const fallbackStatus = resolveCanonicalStatus(os?.status_os) || os?.status_os || null;
+
+  if (!fallbackStatus) {
+    return [];
+  }
+
+  return [
+    {
+      id_historico: null,
+      id_os: os.id_os,
+      status_anterior: null,
+      status_novo: fallbackStatus,
+      id_funcionario: os.id_funcionario || null,
+      origem: 'abertura',
+      data_alteracao: os.data_abertura || new Date()
+    }
+  ];
+}
+
+function ensureInitialHistoryEntry(historyRows, os) {
+  if (!historyRows || historyRows.length === 0) {
+    return buildFallbackStatusHistory(os);
+  }
+
+  const hasExplicitInitial = historyRows.some((entry) => !entry.status_anterior);
+  if (hasExplicitInitial) {
+    return historyRows;
+  }
+
+  const oldestEntry = historyRows[historyRows.length - 1];
+  const inferredInitialStatus =
+    resolveCanonicalStatus(oldestEntry?.status_anterior) ||
+    oldestEntry?.status_anterior ||
+    resolveCanonicalStatus(os?.status_os) ||
+    os?.status_os ||
+    null;
+
+  if (!inferredInitialStatus) {
+    return historyRows;
+  }
+
+  const syntheticInitialEntry = {
+    id_historico: null,
+    id_os: os.id_os,
+    status_anterior: null,
+    status_novo: inferredInitialStatus,
+    id_funcionario: oldestEntry?.id_funcionario || os.id_funcionario || null,
+    origem: 'abertura_sintetica',
+    data_alteracao: os.data_abertura || oldestEntry?.data_alteracao || new Date()
+  };
+
+  return [...historyRows, syntheticInitialEntry].sort((left, right) => {
+    const leftDate = new Date(left.data_alteracao || 0).getTime();
+    const rightDate = new Date(right.data_alteracao || 0).getTime();
+    return rightDate - leftDate;
+  });
+}
+
+async function registerStatusHistoryLog({
+  idOs,
+  previousStatus,
+  newStatus,
+  actorId,
+  origin
+}) {
+  try {
+    await notificationModel.createNotification({
+      id_os: idOs,
+      tipo: buildStatusAuditType({
+        previousStatus,
+        newStatus,
+        actorId,
+        origin
+      }),
+      data_envio: new Date(),
+      status_envio: 'Registrado',
+      canal: STATUS_AUDIT_CHANNEL
+    });
+  } catch (historyLogError) {
+    console.error(
+      'Falha ao registrar historico de status no banco:',
+      historyLogError.message
+    );
+  }
+}
+
 function normalizeStatusValue(value) {
   return String(value || '')
     .trim()
@@ -84,6 +350,10 @@ function resolveCanonicalStatus(value) {
     if (normalizeStatusValue(status) === normalizedInput) {
       return status;
     }
+  }
+
+  if (LEGACY_STATUS_ALIASES.has(normalizedInput)) {
+    return LEGACY_STATUS_ALIASES.get(normalizedInput);
   }
 
   return null;
@@ -135,10 +405,9 @@ const patchStatusOs = async (req, res) => {
       return res.status(404).json({ message: 'OS não encontrada' });
     }
 
-    if (
-      normalizeStatusValue(currentRow.status_os) ===
-      normalizeStatusValue(newStatus)
-    ) {
+    const currentStatus = resolveCanonicalStatus(currentRow.status_os);
+
+    if (currentStatus === newStatus) {
       return res.status(409).json({
         message: 'status_os já está definido com esse valor'
       });
@@ -149,6 +418,14 @@ const patchStatusOs = async (req, res) => {
     if (!patchedRow) {
       return res.status(404).json({ message: 'OS não encontrada' });
     }
+
+    await registerStatusHistoryLog({
+      idOs,
+      previousStatus: currentStatus || currentRow.status_os,
+      newStatus: patchedRow.status_os,
+      actorId: req.auth?.sub || null,
+      origin: 'manual'
+    });
 
     const context = await model.getStatusNotificationContext(idOs);
     const equipmentName = context
@@ -249,6 +526,43 @@ const getPublicOSPhotos = async (req, res) => {
   }
 };
 
+async function fetchStatusHistoryForOS(idOs) {
+  const os = await model.getOSById(idOs);
+
+  if (!os) {
+    return { os: null, history: [] };
+  }
+
+  const notificationRows = await notificationModel.getNotificationsByOS(idOs);
+  const mappedHistory = mapStatusHistoryRows(notificationRows);
+  const history = ensureInitialHistoryEntry(mappedHistory, os);
+
+  return { os, history };
+}
+
+const getStatusHistoryByOS = async (req, res) => {
+  try {
+    const idOs = Number(req.params.id);
+
+    if (!Number.isInteger(idOs) || idOs <= 0) {
+      return res.status(400).json({ message: 'ID da OS invalido' });
+    }
+
+    const { os, history } = await fetchStatusHistoryForOS(idOs);
+
+    if (!os) {
+      return res.status(404).json({ message: 'OS nao encontrada' });
+    }
+
+    return res.status(200).json({
+      id_os: idOs,
+      history
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 const getPublicOSUpdates = async (req, res) => {
   try {
     const idOs = Number(req.params.id);
@@ -257,32 +571,15 @@ const getPublicOSUpdates = async (req, res) => {
       return res.status(400).json({ message: 'ID da OS inválido' });
     }
 
-    const os = await model.getOSById(idOs);
+    const { os, history } = await fetchStatusHistoryForOS(idOs);
 
     if (!os) {
       return res.status(404).json({ message: 'OS não encontrada' });
     }
 
-    const notificationRows = await notificationModel.getNotificationsByOS(idOs);
-
-    const openingEntry = {
-      id_notificacao: null,
-      id_os: idOs,
-      tipo: 'Abertura da OS',
-      data_envio: os.data_abertura,
-      status_envio: 'Registrado',
-      canal: 'Sistema'
-    };
-
-    const updates = [openingEntry, ...notificationRows].sort((left, right) => {
-      const leftDate = new Date(left.data_envio || 0).getTime();
-      const rightDate = new Date(right.data_envio || 0).getTime();
-      return rightDate - leftDate;
-    });
-
     return res.status(200).json({
       id_os: idOs,
-      updates
+      updates: buildStatusUpdatePreview(history)
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -448,11 +745,13 @@ const generatePDF = async (req, res) => {
 
 module.exports = {
   getAllOS,
+  getOSByFilters,
   getOSById,
   createOS,
   patchStatusOs,
   getPublicOS,
   getPublicOSPhotos,
+  getStatusHistoryByOS,
   getPublicOSUpdates,
   getTotalValueOS,
   generatePDF

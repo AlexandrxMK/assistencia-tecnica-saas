@@ -5,6 +5,54 @@ async function getAllEquipments() {
   return rows;
 }
 
+async function getEquipmentsByFilters({
+  id_equipamento,
+  id_cliente,
+  tipo,
+  marca,
+  modelo,
+  serial
+}) {
+  const conditions = [];
+  const values = [];
+
+  function addCondition(condition, value) {
+    values.push(value);
+    conditions.push(condition.replace('?', `$${values.length}`));
+  }
+
+  if (id_equipamento) {
+    addCondition('id_equipamento = ?', id_equipamento);
+  }
+
+  if (id_cliente) {
+    addCondition('id_cliente = ?', id_cliente);
+  }
+
+  if (tipo) {
+    addCondition('tipo ILIKE ?', `%${tipo}%`);
+  }
+
+  if (marca) {
+    addCondition('marca ILIKE ?', `%${marca}%`);
+  }
+
+  if (modelo) {
+    addCondition('modelo ILIKE ?', `%${modelo}%`);
+  }
+
+  if (serial) {
+    addCondition('serial ILIKE ?', `%${serial}%`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const { rows } = await pool.query(
+    `SELECT * FROM equipamento ${whereClause} ORDER BY id_equipamento DESC`,
+    values
+  );
+  return rows;
+}
+
 async function getEquipmentById(id) {
   const { rows } = await pool.query(
     `SELECT * FROM equipamento WHERE id_equipamento = $1`,
@@ -78,6 +126,7 @@ async function getHistoryBySerial(serial) {
 
 module.exports = {
   getAllEquipments,
+  getEquipmentsByFilters,
   getEquipmentById,
   getEquipmentBySerial,
   createEquipment,

@@ -11,6 +11,14 @@ const initialForm = {
   serial: '',
   id_cliente: ''
 };
+const initialEquipmentFilters = {
+  id_equipamento: '',
+  id_cliente: '',
+  tipo: '',
+  marca: '',
+  modelo: '',
+  serial: ''
+};
 
 export function EquipmentsPage() {
   const [equipments, setEquipments] = useState([]);
@@ -19,6 +27,7 @@ export function EquipmentsPage() {
   const [editingId, setEditingId] = useState(null);
   const [historyRows, setHistoryRows] = useState([]);
   const [historySerial, setHistorySerial] = useState('');
+  const [equipmentFilters, setEquipmentFilters] = useState(initialEquipmentFilters);
   const [status, setStatus] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -114,6 +123,38 @@ export function EquipmentsPage() {
       setHistoryRows([]);
       setStatus({ type: 'error', text: extractApiError(error) });
     }
+  }
+
+  async function handleSearchEquipments() {
+    setStatus({ type: '', text: '' });
+    setIsLoading(true);
+
+    try {
+      const params = {};
+      if (equipmentFilters.id_equipamento.trim()) params.id_equipamento = equipmentFilters.id_equipamento.trim();
+      if (equipmentFilters.id_cliente.trim()) params.id_cliente = equipmentFilters.id_cliente.trim();
+      if (equipmentFilters.tipo.trim()) params.tipo = equipmentFilters.tipo.trim();
+      if (equipmentFilters.marca.trim()) params.marca = equipmentFilters.marca.trim();
+      if (equipmentFilters.modelo.trim()) params.modelo = equipmentFilters.modelo.trim();
+      if (equipmentFilters.serial.trim()) params.serial = equipmentFilters.serial.trim();
+
+      const response = await backendApi.equipment.search(params);
+      const list = response.data || [];
+      setEquipments(list);
+      setStatus({
+        type: 'success',
+        text: `${list.length} equipamento(s) encontrado(s) pelos filtros.`
+      });
+    } catch (error) {
+      setStatus({ type: 'error', text: extractApiError(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleClearEquipmentFilters() {
+    setEquipmentFilters(initialEquipmentFilters);
+    await loadData();
   }
 
   return (
@@ -235,6 +276,91 @@ export function EquipmentsPage() {
 
       <Panel title="Equipamentos cadastrados" subtitle="Lista geral integrada com API">
         <InlineMessage type={status.type}>{status.text}</InlineMessage>
+
+        <div className="form-grid">
+          <label>
+            ID do equipamento
+            <input
+              type="number"
+              min="1"
+              value={equipmentFilters.id_equipamento}
+              onChange={(event) =>
+                setEquipmentFilters((value) => ({ ...value, id_equipamento: event.target.value }))
+              }
+              placeholder="Ex: 3"
+            />
+          </label>
+
+          <label>
+            ID do cliente
+            <input
+              type="number"
+              min="1"
+              value={equipmentFilters.id_cliente}
+              onChange={(event) =>
+                setEquipmentFilters((value) => ({ ...value, id_cliente: event.target.value }))
+              }
+              placeholder="Ex: 1"
+            />
+          </label>
+
+          <label>
+            Tipo
+            <input
+              type="text"
+              value={equipmentFilters.tipo}
+              onChange={(event) =>
+                setEquipmentFilters((value) => ({ ...value, tipo: event.target.value }))
+              }
+              placeholder="Ex: smartphone"
+            />
+          </label>
+
+          <label>
+            Marca
+            <input
+              type="text"
+              value={equipmentFilters.marca}
+              onChange={(event) =>
+                setEquipmentFilters((value) => ({ ...value, marca: event.target.value }))
+              }
+              placeholder="Ex: samsung"
+            />
+          </label>
+
+          <label>
+            Modelo
+            <input
+              type="text"
+              value={equipmentFilters.modelo}
+              onChange={(event) =>
+                setEquipmentFilters((value) => ({ ...value, modelo: event.target.value }))
+              }
+              placeholder="Ex: s21"
+            />
+          </label>
+
+          <label>
+            Serial
+            <input
+              type="text"
+              value={equipmentFilters.serial}
+              onChange={(event) =>
+                setEquipmentFilters((value) => ({ ...value, serial: event.target.value }))
+              }
+              placeholder="Ex: MOTOG84-PA-0001"
+            />
+          </label>
+
+          <div className="form-actions">
+            <button type="button" className="button button-secondary" onClick={handleSearchEquipments}>
+              Filtrar equipamentos
+            </button>
+            <button type="button" className="button button-ghost" onClick={handleClearEquipmentFilters}>
+              Limpar filtros
+            </button>
+          </div>
+        </div>
 
         {isLoading ? <p>Carregando equipamentos...</p> : null}
 

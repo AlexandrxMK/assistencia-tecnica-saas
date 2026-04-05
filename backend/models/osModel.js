@@ -5,6 +5,80 @@ async function getAllOS() {
   return rows;
 }
 
+async function getOSByFilters({
+  id_os,
+  status_os,
+  id_equipamento,
+  id_funcionario,
+  data_from,
+  data_to,
+  descricao_problema,
+  serial,
+  cliente_nome
+}) {
+  const conditions = [];
+  const values = [];
+
+  function addCondition(condition, value) {
+    values.push(value);
+    conditions.push(condition.replace('?', `$${values.length}`));
+  }
+
+  if (id_os) {
+    addCondition('os.id_os = ?', id_os);
+  }
+
+  if (status_os) {
+    addCondition('os.status_os = ?', status_os);
+  }
+
+  if (id_equipamento) {
+    addCondition('os.id_equipamento = ?', id_equipamento);
+  }
+
+  if (id_funcionario) {
+    addCondition('os.id_funcionario = ?', id_funcionario);
+  }
+
+  if (data_from) {
+    addCondition('os.data_abertura >= ?', data_from);
+  }
+
+  if (data_to) {
+    addCondition('os.data_abertura <= ?', data_to);
+  }
+
+  if (descricao_problema) {
+    addCondition('os.descricao_problema ILIKE ?', `%${descricao_problema}%`);
+  }
+
+  if (serial) {
+    addCondition('equipamento.serial ILIKE ?', `%${serial}%`);
+  }
+
+  if (cliente_nome) {
+    addCondition('cliente.nome ILIKE ?', `%${cliente_nome}%`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const { rows } = await pool.query(
+    `
+    SELECT os.*
+    FROM os
+    LEFT JOIN equipamento
+      ON os.id_equipamento = equipamento.id_equipamento
+    LEFT JOIN cliente
+      ON equipamento.id_cliente = cliente.id_cliente
+    ${whereClause}
+    ORDER BY os.data_abertura DESC
+    `,
+    values
+  );
+
+  return rows;
+}
+
 async function getOSById(id) {
   const { rows } = await pool.query(
     `SELECT * FROM os WHERE id_os = $1`,
@@ -120,6 +194,7 @@ WHERE os.id_os = $1;`, [id]);
 
 module.exports = {
   getAllOS,
+  getOSByFilters,
   getOSById,
   createOS,
   patchStatusOs,

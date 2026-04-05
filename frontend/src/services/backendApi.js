@@ -17,6 +17,7 @@ export const backendApi = {
   },
   equipment: {
     list: () => api.get('/equipment'),
+    search: (params) => api.get('/equipment/search', { params }),
     create: (payload) => api.post('/equipment', payload),
     update: (id, payload) => api.put(`/equipment/${id}`, payload),
     remove: (id) => api.delete(`/equipment/${id}`),
@@ -25,6 +26,7 @@ export const backendApi = {
   },
   os: {
     list: () => api.get('/os'),
+    search: (params) => api.get('/os/search', { params }),
     create: (payload) => api.post('/os', payload),
     patchStatus: (id, payload) => api.patch(`/os/${id}/status`, payload),
     getPublicStatus: (id) => api.get(`/os/${id}/status`),

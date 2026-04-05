@@ -9,11 +9,14 @@ import { formatCurrency, formatDate, toLocalDateTimeInputValue } from '../lib/fo
 const STATUS_OPTIONS = [
   'Aberto',
   'Em Analise',
-  'Em Analise Tecnica',
-  'Em Conserto',
-  'Concluida',
-  'Cancelada'
+  'Aguardando Peca',
+  'Concluido'
 ];
+const LEGACY_STATUS_ALIASES = {
+  'em analise tecnica': 'Em Analise',
+  'em conserto': 'Aguardando Peca',
+  concluida: 'Concluido'
+};
 
 function normalizeStatusValue(value) {
   return String(value || '')
@@ -27,6 +30,9 @@ const STATUS_CANONICAL_MAP = STATUS_OPTIONS.reduce((accumulator, status) => {
   accumulator[normalizeStatusValue(status)] = status;
   return accumulator;
 }, {});
+Object.entries(LEGACY_STATUS_ALIASES).forEach(([legacyStatus, canonicalStatus]) => {
+  STATUS_CANONICAL_MAP[legacyStatus] = canonicalStatus;
+});
 
 function toCanonicalStatus(value) {
   const normalizedValue = normalizeStatusValue(value);
@@ -40,21 +46,32 @@ const initialForm = {
   id_funcionario: '',
   id_equipamento: ''
 };
+const initialOrderFilters = {
+  id_os: '',
+  status_os: '',
+  id_equipamento: '',
+  id_funcionario: '',
+  descricao_problema: '',
+  serial: '',
+  cliente_nome: '',
+  data_from: '',
+  data_to: ''
+};
 
 export function OrdersPage() {
   const statusOptions = [
     { value: 'Aberto', label: 'Aberto' },
-    { value: 'Em Analise', label: 'Em Análise' },
-    { value: 'Em Analise Tecnica', label: 'Em Análise Técnica' },
-    { value: 'Em Conserto', label: 'Em Conserto' },
-    { value: 'Concluida', label: 'Concluída' },
-    { value: 'Cancelada', label: 'Cancelada' }
+    { value: 'Em Analise', label: 'Em Analise' },
+    { value: 'Aguardando Peca', label: 'Aguardando Peca' },
+    { value: 'Concluido', label: 'Concluido' }
   ];
 
   const [orders, setOrders] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [equipments, setEquipments] = useState([]);
   const [form, setForm] = useState(initialForm);
+  const [intakePhotoFile, setIntakePhotoFile] = useState(null);
+  const [orderFilters, setOrderFilters] = useState(initialOrderFilters);
   const [statusByOrder, setStatusByOrder] = useState({});
   const [qrOrderId, setQrOrderId] = useState(null);
   const [status, setStatus] = useState({ type: '', text: '' });
@@ -68,6 +85,32 @@ export function OrdersPage() {
     [orders]
   );
 
+  function applyOrdersList(ordersList) {
+    setOrders(ordersList);
+    setStatusByOrder(
+      ordersList.reduce((accumulator, order) => {
+        accumulator[order.id_os] = toCanonicalStatus(order.status_os) || order.status_os;
+        return accumulator;
+      }, {})
+    );
+  }
+
+  function buildOrderSearchParams() {
+    const params = {};
+
+    if (orderFilters.id_os.trim()) params.id_os = orderFilters.id_os.trim();
+    if (orderFilters.status_os) params.status_os = orderFilters.status_os;
+    if (orderFilters.id_equipamento.trim()) params.id_equipamento = orderFilters.id_equipamento.trim();
+    if (orderFilters.id_funcionario.trim()) params.id_funcionario = orderFilters.id_funcionario.trim();
+    if (orderFilters.descricao_problema.trim()) params.descricao_problema = orderFilters.descricao_problema.trim();
+    if (orderFilters.serial.trim()) params.serial = orderFilters.serial.trim();
+    if (orderFilters.cliente_nome.trim()) params.cliente_nome = orderFilters.cliente_nome.trim();
+    if (orderFilters.data_from) params.data_from = new Date(orderFilters.data_from).toISOString();
+    if (orderFilters.data_to) params.data_to = new Date(orderFilters.data_to).toISOString();
+
+    return params;
+  }
+
   async function loadData() {
     setIsLoading(true);
     setStatus({ type: '', text: '' });
@@ -80,20 +123,39 @@ export function OrdersPage() {
       ]);
 
       const ordersList = ordersResponse.data || [];
-      setOrders(ordersList);
       setEmployees(employeesResponse.data || []);
       setEquipments(equipmentResponse.data || []);
-      setStatusByOrder(
-        ordersList.reduce((accumulator, order) => {
-          accumulator[order.id_os] = toCanonicalStatus(order.status_os) || order.status_os;
-          return accumulator;
-        }, {})
-      );
+      applyOrdersList(ordersList);
     } catch (error) {
       setStatus({ type: 'error', text: extractApiError(error) });
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function handleSearchOrders() {
+    setStatus({ type: '', text: '' });
+    setIsLoading(true);
+
+    try {
+      const params = buildOrderSearchParams();
+      const response = await backendApi.os.search(params);
+      const ordersList = response.data || [];
+      applyOrdersList(ordersList);
+      setStatus({
+        type: 'success',
+        text: `${ordersList.length} OS encontrada(s) pelos filtros.`
+      });
+    } catch (error) {
+      setStatus({ type: 'error', text: extractApiError(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleClearOrderFilters() {
+    setOrderFilters(initialOrderFilters);
+    await loadData();
   }
 
   useEffect(() => {
@@ -105,14 +167,38 @@ export function OrdersPage() {
     setStatus({ type: '', text: '' });
 
     try {
-      await backendApi.os.create({
+      const response = await backendApi.os.create({
         ...form,
         id_funcionario: Number(form.id_funcionario),
         id_equipamento: Number(form.id_equipamento),
         data_abertura: new Date(form.data_abertura).toISOString()
       });
+
+      const createdOrderId = Number(response.data?.id_os);
+      let uploadWarning = '';
+
+      if (intakePhotoFile) {
+        if (Number.isInteger(createdOrderId) && createdOrderId > 0) {
+          const photoPayload = new FormData();
+          photoPayload.append('id_os', String(createdOrderId));
+          photoPayload.append('photo', intakePhotoFile);
+
+          try {
+            await backendApi.photo.upload(photoPayload);
+          } catch (uploadError) {
+            uploadWarning = ` OS criada, mas a foto de entrada nao foi enviada: ${extractApiError(uploadError)}`;
+          }
+        } else {
+          uploadWarning = ' OS criada, mas nao foi possivel identificar o ID para anexar a foto de entrada.';
+        }
+      }
+
       setForm(initialForm);
-      setStatus({ type: 'success', text: 'OS criada com sucesso.' });
+      setIntakePhotoFile(null);
+      setStatus({
+        type: uploadWarning ? 'info' : 'success',
+        text: `OS criada com sucesso.${uploadWarning}`
+      });
       await loadData();
     } catch (error) {
       setStatus({ type: 'error', text: extractApiError(error) });
@@ -121,9 +207,13 @@ export function OrdersPage() {
 
   async function handlePatchStatus(orderId) {
     const nextStatus = statusByOrder[orderId];
-    const canonicalStatus = toCanonicalStatus(nextStatus) || nextStatus;
+    const canonicalStatus = toCanonicalStatus(nextStatus);
 
     if (!canonicalStatus) {
+      setStatus({
+        type: 'error',
+        text: `Selecione um status valido para atualizar a OS #${orderId}.`
+      });
       return;
     }
 
@@ -248,6 +338,21 @@ export function OrdersPage() {
             </select>
           </label>
 
+          <label className="field-full">
+            Foto de entrada (opcional)
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/*"
+              capture="environment"
+              onChange={(event) => setIntakePhotoFile(event.target.files?.[0] || null)}
+            />
+            <small>
+              {intakePhotoFile
+                ? `Arquivo selecionado: ${intakePhotoFile.name}`
+                : 'Nenhum arquivo selecionado.'}
+            </small>
+          </label>
+
           <div className="form-actions">
             <button type="submit" className="button button-primary">
               Criar OS
@@ -258,6 +363,131 @@ export function OrdersPage() {
 
       <Panel title="Ordens cadastradas">
         <InlineMessage type={status.type}>{status.text}</InlineMessage>
+
+        <div className="form-grid">
+          <label>
+            ID da OS
+            <input
+              type="number"
+              min="1"
+              value={orderFilters.id_os}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, id_os: event.target.value }))
+              }
+              placeholder="Ex: 12"
+            />
+          </label>
+
+          <label>
+            Status
+            <select
+              value={orderFilters.status_os}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, status_os: event.target.value }))
+              }
+            >
+              <option value="">Todos</option>
+              {statusOptions.map((statusOption) => (
+                <option key={`filter-${statusOption.value}`} value={statusOption.value}>
+                  {statusOption.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            ID do equipamento
+            <input
+              type="number"
+              min="1"
+              value={orderFilters.id_equipamento}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, id_equipamento: event.target.value }))
+              }
+              placeholder="Ex: 3"
+            />
+          </label>
+
+          <label>
+            ID do funcionario
+            <input
+              type="number"
+              min="1"
+              value={orderFilters.id_funcionario}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, id_funcionario: event.target.value }))
+              }
+              placeholder="Ex: 2"
+            />
+          </label>
+
+          <label className="field-full">
+            Problema (descricao)
+            <input
+              type="text"
+              value={orderFilters.descricao_problema}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, descricao_problema: event.target.value }))
+              }
+              placeholder="Ex: tela quebrada"
+            />
+          </label>
+
+          <label>
+            Serial do equipamento
+            <input
+              type="text"
+              value={orderFilters.serial}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, serial: event.target.value }))
+              }
+              placeholder="Ex: MOTOG84-PA-0001"
+            />
+          </label>
+
+          <label>
+            Nome do cliente
+            <input
+              type="text"
+              value={orderFilters.cliente_nome}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, cliente_nome: event.target.value }))
+              }
+              placeholder="Ex: Mariana"
+            />
+          </label>
+
+          <label>
+            Abertura de
+            <input
+              type="datetime-local"
+              value={orderFilters.data_from}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, data_from: event.target.value }))
+              }
+            />
+          </label>
+
+          <label>
+            Abertura ate
+            <input
+              type="datetime-local"
+              value={orderFilters.data_to}
+              onChange={(event) =>
+                setOrderFilters((value) => ({ ...value, data_to: event.target.value }))
+              }
+            />
+          </label>
+
+          <div className="form-actions">
+            <button type="button" className="button button-secondary" onClick={handleSearchOrders}>
+              Filtrar ordens
+            </button>
+            <button type="button" className="button button-ghost" onClick={handleClearOrderFilters}>
+              Limpar filtros
+            </button>
+          </div>
+        </div>
 
         {isLoading ? <p>Carregando ordens...</p> : null}
 
@@ -279,26 +509,34 @@ export function OrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedOrders.map((order) => (
-                  <tr key={order.id_os}>
-                    <td>#{order.id_os}</td>
-                    <td>
-                      <select
-                        value={statusByOrder[order.id_os] || order.status_os}
-                        onChange={(event) =>
-                          setStatusByOrder((current) => ({
-                            ...current,
-                            [order.id_os]: event.target.value
-                          }))
-                        }
-                      >
-                        {statusOptions.map((statusOption) => (
-                          <option key={`${order.id_os}-${statusOption.value}`} value={statusOption.value}>
-                            {statusOption.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+                {sortedOrders.map((order) => {
+                  const selectedStatus = statusByOrder[order.id_os] || order.status_os;
+                  const normalizedSelectedStatus = normalizeStatusValue(selectedStatus);
+                  const isSupportedStatus = Boolean(STATUS_CANONICAL_MAP[normalizedSelectedStatus]);
+                  const rowStatusOptions = isSupportedStatus
+                    ? statusOptions
+                    : [{ value: selectedStatus, label: `${selectedStatus} (legado)` }, ...statusOptions];
+
+                  return (
+                    <tr key={order.id_os}>
+                      <td>#{order.id_os}</td>
+                      <td>
+                        <select
+                          value={selectedStatus}
+                          onChange={(event) =>
+                            setStatusByOrder((current) => ({
+                              ...current,
+                              [order.id_os]: event.target.value
+                            }))
+                          }
+                        >
+                          {rowStatusOptions.map((statusOption) => (
+                            <option key={`${order.id_os}-${statusOption.value}`} value={statusOption.value}>
+                              {statusOption.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                     <td>{formatDate(order.data_abertura)}</td>
                     <td>{order.id_equipamento}</td>
                     <td>
@@ -345,8 +583,9 @@ export function OrdersPage() {
                         </Link>
                       </div>
                     </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

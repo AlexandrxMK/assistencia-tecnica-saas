@@ -386,6 +386,30 @@ textarea:focus {
   grid-template-columns: repeat(2, minmax(140px, 1fr));
 }
 
+.quick-search-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.quick-search-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  align-items: end;
+  border: 1px solid #e2d7c8;
+  border-radius: 12px;
+  padding: 0.6rem 0.65rem;
+  background: #fffcf7;
+}
+
+.quick-search-row label {
+  margin: 0;
+}
+
+.quick-search-button {
+  min-width: 138px;
+}
+
 .button {
   border: none;
   border-radius: 9px;
@@ -786,6 +810,14 @@ textarea:focus {
   .search-grid,
   .inline-form {
     grid-template-columns: 1fr;
+  }
+
+  .quick-search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-search-button {
+    width: 100%;
   }
 
   .bar-row {

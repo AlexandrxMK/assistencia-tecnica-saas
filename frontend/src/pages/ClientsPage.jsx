@@ -135,6 +135,13 @@ export function ClientsPage() {
     }
   }
 
+  async function handleClearSearch() {
+    setQueryName('');
+    setQueryPhone('');
+    setQueryEmail('');
+    await loadClients();
+  }
+
   return (
     <div className="page-stack">
       <Panel
@@ -250,42 +257,66 @@ export function ClientsPage() {
         title="Busca rápida"
         subtitle="Pesquise por nome, telefone ou email"
       >
-        <div className="search-grid">
-          <label>
-            Nome
-            <input
-              type="text"
-              value={queryName}
-              onChange={(event) => setQueryName(event.target.value)}
-            />
-          </label>
-          <button type="button" className="button button-secondary" onClick={handleSearchByName}>
-            Buscar nome
-          </button>
+        <div className="quick-search-grid">
+          <div className="quick-search-row">
+            <label>
+              Nome
+              <input
+                type="text"
+                value={queryName}
+                onChange={(event) => setQueryName(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button button-secondary quick-search-button"
+              onClick={handleSearchByName}
+            >
+              Buscar nome
+            </button>
+          </div>
 
-          <label>
-            Telefone
-            <input
-              type="text"
-              value={queryPhone}
-              onChange={(event) => setQueryPhone(event.target.value)}
-            />
-          </label>
-          <button type="button" className="button button-secondary" onClick={handleSearchByPhone}>
-            Buscar telefone
-          </button>
+          <div className="quick-search-row">
+            <label>
+              Telefone
+              <input
+                type="text"
+                value={queryPhone}
+                onChange={(event) => setQueryPhone(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button button-secondary quick-search-button"
+              onClick={handleSearchByPhone}
+            >
+              Buscar telefone
+            </button>
+          </div>
 
-          <label>
-            Email
-            <input
-              type="email"
-              value={queryEmail}
-              onChange={(event) => setQueryEmail(event.target.value)}
-            />
-          </label>
-          <button type="button" className="button button-secondary" onClick={handleSearchByEmail}>
-            Buscar email
-          </button>
+          <div className="quick-search-row">
+            <label>
+              Email
+              <input
+                type="email"
+                value={queryEmail}
+                onChange={(event) => setQueryEmail(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button button-secondary quick-search-button"
+              onClick={handleSearchByEmail}
+            >
+              Buscar email
+            </button>
+          </div>
+
+          <div className="form-actions">
+            <button type="button" className="button button-secondary" onClick={handleClearSearch}>
+              Limpar busca
+            </button>
+          </div>
         </div>
       </Panel>
 

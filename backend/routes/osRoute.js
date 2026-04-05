@@ -9,6 +9,8 @@ router.get('/:id/updates', controller.getPublicOSUpdates);
 
 router.use(authenticate);
 router.get('/', controller.getAllOS);
+router.get('/search', controller.getOSByFilters);
+router.get('/:id/status-history', controller.getStatusHistoryByOS);
 router.get('/:id', controller.getOSById);
 router.get('/:id/total', controller.getTotalValueOS);
 router.get('/:id/pdf', controller.generatePDF);

@@ -81,7 +81,7 @@ export function NotificationsPage() {
               value={form.tipo}
               onChange={(event) => setForm((value) => ({ ...value, tipo: event.target.value }))}
               disabled={!canCreate}
-              placeholder="Ex: Mudança de status para Em Conserto"
+              placeholder="Ex: Mudanca de status para Aguardando Peca"
               required
             />
           </label>

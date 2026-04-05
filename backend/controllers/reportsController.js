@@ -125,7 +125,12 @@ const generateAllOrdersPDF = async (req, res) => {
 
     const STATUS_COLORS = {
       'Aberto': { bg: '#e8f4fd', text: '#1a73e8' },
+      'Em Analise': { bg: '#fff8e1', text: '#8d6e63' },
+      'Aguardando Peca': { bg: '#fff3e0', text: '#ef6c00' },
+      'Concluido': { bg: '#e8f8e8', text: '#2e7d32' },
       'Concluida': { bg: '#e8f8e8', text: '#2e7d32' },
+      'Em Analise Tecnica': { bg: '#fff8e1', text: '#8d6e63' },
+      'Em Conserto': { bg: '#fff3e0', text: '#ef6c00' },
       'Cancelada': { bg: '#fde8e8', text: '#c62828' },
     };
 
