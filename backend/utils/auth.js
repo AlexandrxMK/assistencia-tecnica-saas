@@ -3,6 +3,18 @@ const { promisify } = require('util');
 
 const scryptAsync = promisify(crypto.scrypt);
 
+const ACCESS_LEVEL_CODE_BY_ROLE = {
+  tecnico: 1,
+  gerente: 2,
+  admin: 3
+};
+
+const ACCESS_LEVEL_ROLE_BY_CODE = {
+  1: 'tecnico',
+  2: 'gerente',
+  3: 'admin'
+};
+
 function toBase64Url(input) {
   return Buffer.from(input)
     .toString('base64')
@@ -30,8 +42,36 @@ function getTokenSecret() {
   return process.env.AUTH_TOKEN_SECRET;
 }
 
+function toAccessLevelCode(level) {
+  if (level === null || level === undefined || level === '') {
+    return null;
+  }
+
+  if (typeof level === 'number' && Number.isInteger(level)) {
+    return ACCESS_LEVEL_ROLE_BY_CODE[level] ? level : null;
+  }
+
+  const normalized = String(level).trim().toLowerCase();
+
+  if (Object.prototype.hasOwnProperty.call(ACCESS_LEVEL_CODE_BY_ROLE, normalized)) {
+    return ACCESS_LEVEL_CODE_BY_ROLE[normalized];
+  }
+
+  if (/^\d+$/.test(normalized)) {
+    const code = Number(normalized);
+    return ACCESS_LEVEL_ROLE_BY_CODE[code] ? code : null;
+  }
+
+  return null;
+}
+
 function normalizeAccessLevel(level) {
-  return String(level || '').trim().toLowerCase();
+  const accessLevelCode = toAccessLevelCode(level);
+  return accessLevelCode ? ACCESS_LEVEL_ROLE_BY_CODE[accessLevelCode] : '';
+}
+
+function isValidAccessLevel(level) {
+  return toAccessLevelCode(level) !== null;
 }
 
 async function hashPassword(password) {
@@ -144,7 +184,9 @@ function verifyAuthToken(token) {
 module.exports = {
   createAuthToken,
   hashPassword,
+  isValidAccessLevel,
   normalizeAccessLevel,
+  toAccessLevelCode,
   verifyAuthToken,
   verifyPassword
 };

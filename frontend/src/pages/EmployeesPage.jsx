@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Panel, EmptyState, InlineMessage } from '../components/Ui';
 import { backendApi } from '../services/backendApi';
 import { extractApiError } from '../lib/api';
@@ -28,6 +28,7 @@ export function EmployeesPage() {
   const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(true);
+  const formPanelRef = useRef(null);
 
   const isManager = useMemo(
     () => managerRoles.has(String(user?.nivel_acesso || '').toLowerCase()),
@@ -64,6 +65,12 @@ export function EmployeesPage() {
     setEditingId(null);
   }
 
+  function scrollToFormPanel() {
+    window.requestAnimationFrame(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -75,9 +82,14 @@ export function EmployeesPage() {
     const payload = {
       nome: form.nome,
       email: form.email,
-      nivel_acesso: form.nivel_acesso,
       id_cargo: form.id_cargo ? Number(form.id_cargo) : null
     };
+
+    if (isAdmin) {
+      payload.nivel_acesso = form.nivel_acesso;
+    } else if (!editingId) {
+      payload.nivel_acesso = 'tecnico';
+    }
 
     if (form.senha) {
       payload.senha = form.senha;
@@ -125,6 +137,7 @@ export function EmployeesPage() {
 
   return (
     <div className="page-stack">
+      <div ref={formPanelRef}>
       <Panel
         title="Gestão de funcionários"
         subtitle="Rotas protegidas por perfil (admin/gerente)"
@@ -177,7 +190,7 @@ export function EmployeesPage() {
               onChange={(event) =>
                 setForm((value) => ({ ...value, nivel_acesso: event.target.value }))
               }
-              disabled={!isManager}
+              disabled={!isAdmin}
             >
               <option value="admin">admin</option>
               <option value="gerente">gerente</option>
@@ -211,6 +224,7 @@ export function EmployeesPage() {
           </div>
         </form>
       </Panel>
+      </div>
 
       <Panel title="Funcionários cadastrados" subtitle="Dados de /employees">
         <InlineMessage type={status.type}>{status.text}</InlineMessage>
@@ -257,6 +271,7 @@ export function EmployeesPage() {
                               nivel_acesso: employee.nivel_acesso,
                               id_cargo: employee.id_cargo ? String(employee.id_cargo) : ''
                             });
+                            scrollToFormPanel();
                           }}
                         >
                           Editar

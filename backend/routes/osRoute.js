@@ -15,6 +15,8 @@ router.get('/:id', controller.getOSById);
 router.get('/:id/total', controller.getTotalValueOS);
 router.get('/:id/pdf', controller.generatePDF);
 router.post('/', controller.createOS);
+router.post('/:id/parts', controller.addPartToOS);
 router.patch('/:id/status', controller.patchStatusOs);
+router.patch('/:id/labor', controller.patchLaborValue);
 
 module.exports = router;

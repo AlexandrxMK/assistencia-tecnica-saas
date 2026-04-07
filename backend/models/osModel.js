@@ -95,6 +95,53 @@ async function patchStatusOs(id, status, dataConclusao){
   return rows[0];
 }
 
+async function patchLaborValue(id, valorMaoObra) {
+  const { rows } = await pool.query(
+    `
+    UPDATE os
+    SET
+      valor_mao_obra = $1,
+      valor_total = $1 + COALESCE(
+        (
+          SELECT SUM(os_peca.quantidade * os_peca.preco_unitario_cobrado)
+          FROM os_peca
+          WHERE os_peca.id_os = $2
+        ),
+        0
+      )
+    WHERE id_os = $2
+    RETURNING *
+    `,
+    [valorMaoObra, id]
+  );
+
+  return rows[0];
+}
+
+async function addPartToOS({
+  id_os,
+  id_peca,
+  quantidade,
+  preco_unitario_cobrado
+}) {
+  const { rows } = await pool.query(
+    `
+    INSERT INTO os_peca (id_os, id_peca, quantidade, preco_unitario_cobrado)
+    SELECT
+      $1,
+      peca.id_peca,
+      $3,
+      COALESCE($4, peca.preco_unit)
+    FROM peca
+    WHERE peca.id_peca = $2
+    RETURNING *
+    `,
+    [id_os, id_peca, quantidade, preco_unitario_cobrado]
+  );
+
+  return rows[0];
+}
+
 async function getStatusNotificationContext(id) {
   const { rows } = await pool.query(
     `
@@ -203,6 +250,8 @@ module.exports = {
   getOSById,
   createOS,
   patchStatusOs,
+  patchLaborValue,
+  addPartToOS,
   getStatusNotificationContext,
   getPublicOS,
   getTotalValueOs,

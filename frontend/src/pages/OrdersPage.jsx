@@ -73,6 +73,7 @@ export function OrdersPage() {
   const [intakePhotoFile, setIntakePhotoFile] = useState(null);
   const [orderFilters, setOrderFilters] = useState(initialOrderFilters);
   const [statusByOrder, setStatusByOrder] = useState({});
+  const [laborByOrder, setLaborByOrder] = useState({});
   const [qrOrderId, setQrOrderId] = useState(null);
   const [status, setStatus] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(true);
@@ -90,6 +91,15 @@ export function OrdersPage() {
     setStatusByOrder(
       ordersList.reduce((accumulator, order) => {
         accumulator[order.id_os] = toCanonicalStatus(order.status_os) || order.status_os;
+        return accumulator;
+      }, {})
+    );
+    setLaborByOrder(
+      ordersList.reduce((accumulator, order) => {
+        accumulator[order.id_os] =
+          order.valor_mao_obra === null || order.valor_mao_obra === undefined
+            ? ''
+            : String(order.valor_mao_obra);
         return accumulator;
       }, {})
     );
@@ -208,6 +218,10 @@ export function OrdersPage() {
   async function handlePatchStatus(orderId) {
     const nextStatus = statusByOrder[orderId];
     const canonicalStatus = toCanonicalStatus(nextStatus);
+    const currentOrder = orders.find((order) => Number(order.id_os) === Number(orderId));
+    const currentCanonicalStatus = toCanonicalStatus(currentOrder?.status_os) || currentOrder?.status_os;
+    const rawLaborValue = laborByOrder[orderId];
+    const hasLaborValue = String(rawLaborValue ?? '').trim() !== '';
 
     if (!canonicalStatus) {
       setStatus({
@@ -217,16 +231,82 @@ export function OrdersPage() {
       return;
     }
 
-    try {
-      const response = await backendApi.os.patchStatus(orderId, {
-        status_os: canonicalStatus
+    if (!currentOrder) {
+      setStatus({
+        type: 'error',
+        text: `OS #${orderId} nao encontrada na lista atual.`
       });
-      const notificationStatus = response.data?.notification?.status || 'sem retorno';
+      return;
+    }
+
+    const statusChanged = canonicalStatus !== currentCanonicalStatus;
+    let laborUpdated = false;
+    let updatedTotal = currentOrder.valor_total;
+    let notificationStatus = null;
+
+    try {
+      if (hasLaborValue) {
+        const laborValue = Number(rawLaborValue);
+
+        if (!Number.isFinite(laborValue) || laborValue < 0) {
+          setStatus({
+            type: 'error',
+            text: `Informe um valor de mao de obra valido para a OS #${orderId}.`
+          });
+          return;
+        }
+
+        const currentLaborValue = Number(currentOrder.valor_mao_obra);
+        const hasCurrentLaborValue =
+          currentOrder.valor_mao_obra !== null &&
+          currentOrder.valor_mao_obra !== undefined &&
+          String(currentOrder.valor_mao_obra).trim() !== '';
+        const laborChanged =
+          !hasCurrentLaborValue || Math.abs(laborValue - currentLaborValue) > 0.000001;
+
+        if (laborChanged) {
+          const laborResponse = await backendApi.os.patchLabor(orderId, {
+            valor_mao_obra: laborValue
+          });
+          laborUpdated = true;
+          updatedTotal = laborResponse.data?.data?.valor_total ?? updatedTotal;
+        }
+      }
+
+      if (statusChanged) {
+        const response = await backendApi.os.patchStatus(orderId, {
+          status_os: canonicalStatus
+        });
+        notificationStatus = response.data?.notification?.status || 'sem retorno';
+      }
+
+      if (!laborUpdated && !statusChanged) {
+        setStatus({
+          type: 'info',
+          text: `Nenhuma alteracao detectada para a OS #${orderId}.`
+        });
+        return;
+      }
+
+      let successMessage = `OS #${orderId} atualizada com sucesso.`;
+
+      if (laborUpdated) {
+        successMessage +=
+          updatedTotal === null || updatedTotal === undefined
+            ? ' Mao de obra atualizada.'
+            : ` Mao de obra atualizada. Total da OS: ${formatCurrency(updatedTotal)}.`;
+      }
+
+      if (statusChanged) {
+        successMessage += ` Status atualizado. Notificacao: ${notificationStatus}.`;
+      }
+
       setStatus({
         type: 'success',
-        text: `Status da OS #${orderId} atualizado. Notificação: ${notificationStatus}.`
+        text: successMessage
       });
       await loadData();
+      return;
     } catch (error) {
       setStatus({ type: 'error', text: extractApiError(error) });
     }
@@ -504,6 +584,7 @@ export function OrdersPage() {
                   <th>Status</th>
                   <th>Abertura</th>
                   <th>Equip.</th>
+                  <th>Mao de obra</th>
                   <th>Total</th>
                   <th>Ações</th>
                 </tr>
@@ -541,6 +622,21 @@ export function OrdersPage() {
                       </td>
                     <td>{formatDate(order.data_abertura)}</td>
                     <td>{order.id_equipamento}</td>
+                    <td>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={laborByOrder[order.id_os] ?? ''}
+                        disabled={isLockedOrder}
+                        onChange={(event) =>
+                          setLaborByOrder((current) => ({
+                            ...current,
+                            [order.id_os]: event.target.value
+                          }))
+                        }
+                      />
+                    </td>
                     <td>
                       <div className="table-total-cell">
                         <strong>

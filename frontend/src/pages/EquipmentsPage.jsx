@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Panel, EmptyState, InlineMessage } from '../components/Ui';
 import { backendApi } from '../services/backendApi';
 import { extractApiError } from '../lib/api';
@@ -30,6 +30,7 @@ export function EquipmentsPage() {
   const [equipmentFilters, setEquipmentFilters] = useState(initialEquipmentFilters);
   const [status, setStatus] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(true);
+  const formPanelRef = useRef(null);
 
   async function loadData() {
     setIsLoading(true);
@@ -57,6 +58,12 @@ export function EquipmentsPage() {
   function resetForm() {
     setForm(initialForm);
     setEditingId(null);
+  }
+
+  function scrollToFormPanel() {
+    window.requestAnimationFrame(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   async function handleSubmit(event) {
@@ -159,6 +166,7 @@ export function EquipmentsPage() {
 
   return (
     <div className="page-stack">
+      <div ref={formPanelRef}>
       <Panel title="Cadastro de equipamentos" subtitle="Vincule equipamento ao cliente">
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
@@ -229,6 +237,7 @@ export function EquipmentsPage() {
           </div>
         </form>
       </Panel>
+      </div>
 
       <Panel
         title="Busca de histórico"
@@ -405,6 +414,7 @@ export function EquipmentsPage() {
                               serial: equipment.serial ?? '',
                               id_cliente: String(equipment.id_cliente ?? '')
                             });
+                            scrollToFormPanel();
                           }}
                         >
                           Editar

@@ -28,7 +28,9 @@ export const backendApi = {
     list: () => api.get('/os'),
     search: (params) => api.get('/os/search', { params }),
     create: (payload) => api.post('/os', payload),
+    addPart: (id, payload) => api.post(`/os/${id}/parts`, payload),
     patchStatus: (id, payload) => api.patch(`/os/${id}/status`, payload),
+    patchLabor: (id, payload) => api.patch(`/os/${id}/labor`, payload),
     getPublicStatus: (id) => api.get(`/os/${id}/status`),
     getPublicPhotos: (id) => api.get(`/os/${id}/photos`),
     getPublicUpdates: (id) => api.get(`/os/${id}/updates`),
@@ -48,6 +50,7 @@ export const backendApi = {
     list: () => api.get('/employees'),
     create: (payload) => api.post('/employees', payload),
     update: (id, payload) => api.put(`/employees/${id}`, payload),
+    updateAccessLevel: (id, payload) => api.patch(`/employees/${id}/access-level`, payload),
     remove: (id) => api.delete(`/employees/${id}`)
   },
   cargo: {

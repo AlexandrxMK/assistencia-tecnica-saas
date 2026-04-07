@@ -14,6 +14,10 @@ const createCargo = async (req, res) => {
     const cargo = await model.createCargo(req.body);
     res.status(201).json(cargo);
   } catch (err) {
+    if (err.message.includes('nivel_acesso invalido')) {
+      return res.status(400).json({ message: err.message });
+    }
+
     res.status(500).json({ error: err.message });
   }
 };

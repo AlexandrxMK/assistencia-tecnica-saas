@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Panel, EmptyState, InlineMessage } from '../components/Ui';
 import { backendApi } from '../services/backendApi';
 import { extractApiError } from '../lib/api';
@@ -24,6 +24,7 @@ export function ClientsPage() {
   const [queryEmail, setQueryEmail] = useState('');
   const [status, setStatus] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(true);
+  const formPanelRef = useRef(null);
 
   const submitLabel = useMemo(
     () => (editingId ? 'Salvar alterações' : 'Cadastrar cliente'),
@@ -49,6 +50,12 @@ export function ClientsPage() {
   function resetForm() {
     setForm(initialForm);
     setEditingId(null);
+  }
+
+  function scrollToFormPanel() {
+    window.requestAnimationFrame(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   async function handleSubmit(event) {
@@ -144,6 +151,7 @@ export function ClientsPage() {
 
   return (
     <div className="page-stack">
+      <div ref={formPanelRef}>
       <Panel
         title="Cadastro de clientes"
         subtitle="Criação e edição completa de dados cadastrais"
@@ -252,6 +260,7 @@ export function ClientsPage() {
           </div>
         </form>
       </Panel>
+      </div>
 
       <Panel
         title="Busca rápida"
@@ -366,6 +375,7 @@ export function ClientsPage() {
                               cep: client.cep ?? '',
                               complemento: client.complemento ?? ''
                             });
+                            scrollToFormPanel();
                           }}
                         >
                           Editar

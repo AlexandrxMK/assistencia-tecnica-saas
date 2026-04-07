@@ -11,6 +11,10 @@ const EMAIL_FROM =
     : 'Assistência Técnica <no-reply@assistencia.local>');
 
 let transporterPromise = null;
+const EMAIL_EVENT_TYPES = Object.freeze({
+  OS_CREATED: 'os_created',
+  STATUS_UPDATED: 'status_updated'
+});
 
 function normalizeEmail(email) {
   if (!email) return null;
@@ -59,6 +63,39 @@ function buildStatusEmailText({
       : null,
     '',
     'Se tiver qualquer dúvida, basta responder este e-mail.'
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function buildCreatedEmailText({
+  clientName,
+  osId,
+  status,
+  equipment,
+  publicUrl,
+  hasQrCode
+}) {
+  const safeClientName = clientName || 'Cliente';
+  const safeStatus = status || 'Aberto';
+  const safeEquipment = equipment || 'seu equipamento';
+  const safePublicUrl = publicUrl || null;
+
+  return [
+    `Ola, ${safeClientName}!`,
+    '',
+    `Sua ordem de servico #${osId} foi aberta com sucesso.`,
+    `Equipamento: ${safeEquipment}`,
+    `Status inicial: ${safeStatus}`,
+    '',
+    safePublicUrl
+      ? `Acompanhe o andamento da sua ordem de servico pelo link publico: ${safePublicUrl}`
+      : 'Acompanhe o andamento da sua ordem de servico pelo nosso canal de atendimento.',
+    hasQrCode
+      ? 'QR Code: escaneie a imagem deste e-mail para abrir a pagina publica mais rapidamente.'
+      : null,
+    '',
+    'Se tiver qualquer duvida, basta responder este e-mail.'
   ]
     .filter(Boolean)
     .join('\n');
@@ -120,6 +157,69 @@ function buildStatusEmailHtml({
           : ''
       }
       <p>Se tiver qualquer dúvida, basta responder este e-mail.</p>
+    </div>
+  `;
+}
+
+function buildCreatedEmailHtml({
+  clientName,
+  osId,
+  status,
+  equipment,
+  publicUrl,
+  qrCodeCid
+}) {
+  const safeClientName = escapeHtml(clientName || 'Cliente');
+  const safeStatus = escapeHtml(status || 'Aberto');
+  const safeEquipment = escapeHtml(equipment || 'seu equipamento');
+  const parsedOsId = Number(osId);
+  const safeOsId = Number.isInteger(parsedOsId) && parsedOsId > 0 ? String(parsedOsId) : 'N/A';
+  const safePublicUrl = String(publicUrl || '').trim();
+  const escapedPublicUrl = safePublicUrl ? escapeHtml(safePublicUrl) : '';
+  const hasPublicUrl = Boolean(safePublicUrl);
+  const hasQrCode = Boolean(qrCodeCid);
+  const escapedQrCodeCid = hasQrCode ? escapeHtml(qrCodeCid) : '';
+
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222;">
+      <p>Ola, <strong>${safeClientName}</strong>!</p>
+      <p>Sua ordem de servico <strong>#${safeOsId}</strong> foi aberta com sucesso.</p>
+      <p><strong>Equipamento:</strong> ${safeEquipment}</p>
+      <p><strong>Status inicial:</strong> ${safeStatus}</p>
+      ${
+        hasPublicUrl
+          ? `
+      <p>
+        <a
+          href="${escapedPublicUrl}"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="display:inline-block;padding:10px 16px;background:#1f7a5a;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;"
+        >
+          Acompanhar ordem de servico
+        </a>
+      </p>
+      <p style="font-size:12px;color:#666;word-break:break-all;">${escapedPublicUrl}</p>
+      `
+          : ''
+      }
+      ${
+        hasQrCode
+          ? `
+      <p><strong>Escaneie o QR Code para abrir a pagina publica:</strong></p>
+      <p>
+        <img
+          src="cid:${escapedQrCodeCid}"
+          alt="QR Code da pagina publica da ordem de servico"
+          width="180"
+          height="180"
+          style="display:block;border:1px solid #e1e1e1;border-radius:10px;padding:8px;background:#fff;"
+        />
+      </p>
+      `
+          : ''
+      }
+      <p>Se tiver qualquer duvida, basta responder este e-mail.</p>
     </div>
   `;
 }
@@ -190,7 +290,8 @@ async function sendStatusEmailNotification({
   osId,
   status,
   equipment,
-  publicUrl
+  publicUrl,
+  eventType = EMAIL_EVENT_TYPES.STATUS_UPDATED
 }) {
   if (!EMAIL_ENABLED) {
     return {
@@ -228,12 +329,39 @@ async function sendStatusEmailNotification({
       qrCodeCid: qrCodePayload?.cid || null
     });
 
+    let finalSubject = subject;
+    let finalText = text;
+    let finalHtml = html;
+
+    const normalizedEventType = String(eventType || '').trim().toLowerCase();
+    const isCreationEvent = normalizedEventType === EMAIL_EVENT_TYPES.OS_CREATED;
+
+    if (isCreationEvent) {
+      finalSubject = 'Sua ordem de servico foi aberta';
+      finalText = buildCreatedEmailText({
+        clientName,
+        osId,
+        status,
+        equipment,
+        publicUrl,
+        hasQrCode: Boolean(qrCodePayload)
+      });
+      finalHtml = buildCreatedEmailHtml({
+        clientName,
+        osId,
+        status,
+        equipment,
+        publicUrl,
+        qrCodeCid: qrCodePayload?.cid || null
+      });
+    }
+
     const mailOptions = {
       from: EMAIL_FROM,
       to: normalizedEmail,
-      subject,
-      text,
-      html
+      subject: finalSubject,
+      text: finalText,
+      html: finalHtml
     };
 
     if (qrCodePayload) {

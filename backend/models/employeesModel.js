@@ -1,5 +1,10 @@
 const pool = require('../db/db');
-const { hashPassword, normalizeAccessLevel } = require('../utils/auth');
+const {
+  hashPassword,
+  isValidAccessLevel,
+  normalizeAccessLevel,
+  toAccessLevelCode
+} = require('../utils/auth');
 
 function sanitizeEmployee(row) {
   if (!row) {
@@ -10,9 +15,21 @@ function sanitizeEmployee(row) {
     id_funcionario: row.id_funcionario,
     nome: row.nome,
     email: row.email,
-    nivel_acesso: row.nivel_acesso,
+    nivel_acesso: normalizeAccessLevel(row.nivel_acesso),
     id_cargo: row.id_cargo
   };
+}
+
+function resolveAccessLevelForStorage(level, fallback = 1) {
+  if (level === undefined || level === null || level === '') {
+    return fallback;
+  }
+
+  if (!isValidAccessLevel(level)) {
+    throw new Error('nivel_acesso invalido. Use 1, 2 ou 3');
+  }
+
+  return toAccessLevelCode(level);
 }
 
 function getRawPassword(input = {}) {
@@ -86,7 +103,7 @@ async function createEmployee({
   }
 
   const passwordHash = await hashPassword(rawPassword);
-  const normalizedAccessLevel = normalizeAccessLevel(nivel_acesso || 'tecnico');
+  const normalizedAccessLevel = resolveAccessLevelForStorage(nivel_acesso, 1);
 
   const { rows } = await pool.query(
     `INSERT INTO funcionario
@@ -125,7 +142,7 @@ async function updateEmployee(
   const params = [
     nome,
     email,
-    normalizeAccessLevel(nivel_acesso || 'tecnico'),
+    resolveAccessLevelForStorage(nivel_acesso, 1),
     id_cargo || null
   ];
 
@@ -160,7 +177,7 @@ async function patchEmployee(id, fields) {
   Object.entries(fields).forEach(([key, value]) => {
     if (allowedFields.includes(key)) {
       const normalizedValue = key === 'nivel_acesso'
-        ? normalizeAccessLevel(value)
+        ? resolveAccessLevelForStorage(value, 1)
         : value;
       updates.push(`${key} = $${updates.length + 1}`);
       values.push(normalizedValue);
@@ -208,6 +225,25 @@ async function updateEmployeePasswordHash(id, passwordHash) {
   return rowCount > 0;
 }
 
+async function updateEmployeeAccessLevel(id, nivel_acesso) {
+  const normalizedAccessLevel = resolveAccessLevelForStorage(nivel_acesso, 1);
+
+  const { rows } = await pool.query(
+    `UPDATE funcionario
+     SET nivel_acesso = $1
+     WHERE id_funcionario = $2
+     RETURNING
+       id_funcionario,
+       nome,
+       email,
+       nivel_acesso,
+       id_cargo`,
+    [normalizedAccessLevel, id]
+  );
+
+  return sanitizeEmployee(rows[0]);
+}
+
 async function deleteEmployee(id) {
   const result = await pool.query(
     `DELETE FROM funcionario WHERE id_funcionario = $1`,
@@ -225,6 +261,7 @@ module.exports = {
   getEmployeeAuthByEmail,
   getEmployeeById,
   patchEmployee,
+  updateEmployeeAccessLevel,
   updateEmployee,
   updateEmployeePasswordHash
 };

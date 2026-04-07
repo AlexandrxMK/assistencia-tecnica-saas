@@ -125,7 +125,39 @@ const createOS = async (req, res) => {
       origin: 'abertura'
     });
 
-    res.status(201).json(order);
+    const context = await model.getStatusNotificationContext(order.id_os);
+    const equipmentName = context
+      ? `${context.tipo} ${context.marca} ${context.modelo}`.trim()
+      : null;
+    const publicStatusUrl = buildPublicStatusPageUrl(req, order.id_os);
+
+    const emailResult = await sendStatusEmailNotification({
+      email: context?.email,
+      clientName: context?.nome_cliente,
+      osId: order.id_os,
+      status: order.status_os,
+      equipment: equipmentName,
+      publicUrl: publicStatusUrl,
+      eventType: 'os_created'
+    });
+
+    await registerNotificationLog({
+      idOs: order.id_os,
+      statusOs: order.status_os,
+      sent: emailResult.sent,
+      channel: 'Email'
+    });
+
+    res.status(201).json({
+      ...order,
+      public_status_url: publicStatusUrl,
+      email_notification: {
+        channel: 'Email',
+        sent: emailResult.sent,
+        status: emailResult.status,
+        public_url: publicStatusUrl
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -465,7 +497,8 @@ const patchStatusOs = async (req, res) => {
       osId: idOs,
       status: patchedRow.status_os,
       equipment: equipmentName,
-      publicUrl: publicStatusUrl
+      publicUrl: publicStatusUrl,
+      eventType: 'status_updated'
     });
 
     await registerNotificationLog({
@@ -494,6 +527,89 @@ const patchStatusOs = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+const patchLaborValue = async (req, res) => {
+  try {
+    const idOs = Number(req.params.id);
+    const rawLaborValue = req.body?.valor_mao_obra;
+    const laborValue = Number(rawLaborValue);
+
+    if (!Number.isInteger(idOs) || idOs <= 0) {
+      return res.status(400).json({ message: 'ID da OS invalido' });
+    }
+
+    if (!Number.isFinite(laborValue) || laborValue < 0) {
+      return res.status(400).json({ message: 'valor_mao_obra invalido' });
+    }
+
+    const patchedRow = await model.patchLaborValue(idOs, laborValue);
+
+    if (!patchedRow) {
+      return res.status(404).json({ message: 'OS nao encontrada' });
+    }
+
+    return res.status(200).json({
+      message: 'Valor de mao de obra atualizado com sucesso',
+      data: patchedRow
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+const addPartToOS = async (req, res) => {
+  try {
+    const idOs = Number(req.params.id);
+    const idPeca = Number(req.body?.id_peca);
+    const quantidade = Number(req.body?.quantidade);
+    const rawPrecoUnitario = req.body?.preco_unitario_cobrado;
+    const hasCustomPrice = String(rawPrecoUnitario ?? '').trim() !== '';
+    const precoUnitarioCobrado = hasCustomPrice ? Number(rawPrecoUnitario) : null;
+
+    if (!Number.isInteger(idOs) || idOs <= 0) {
+      return res.status(400).json({ message: 'ID da OS invalido' });
+    }
+
+    if (!Number.isInteger(idPeca) || idPeca <= 0) {
+      return res.status(400).json({ message: 'id_peca invalido' });
+    }
+
+    if (!Number.isInteger(quantidade) || quantidade <= 0) {
+      return res.status(400).json({ message: 'quantidade invalida' });
+    }
+
+    if (hasCustomPrice && (!Number.isFinite(precoUnitarioCobrado) || precoUnitarioCobrado < 0)) {
+      return res.status(400).json({ message: 'preco_unitario_cobrado invalido' });
+    }
+
+    const order = await model.getOSById(idOs);
+
+    if (!order) {
+      return res.status(404).json({ message: 'OS nao encontrada' });
+    }
+
+    const createdOsPart = await model.addPartToOS({
+      id_os: idOs,
+      id_peca: idPeca,
+      quantidade,
+      preco_unitario_cobrado: precoUnitarioCobrado
+    });
+
+    if (!createdOsPart) {
+      return res.status(404).json({ message: 'Peca nao encontrada' });
+    }
+
+    const updatedOrder = await model.getOSById(idOs);
+
+    return res.status(201).json({
+      message: 'Peca adicionada a OS com sucesso',
+      data: createdOsPart,
+      os: updatedOrder
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
@@ -759,6 +875,8 @@ module.exports = {
   getOSById,
   createOS,
   patchStatusOs,
+  patchLaborValue,
+  addPartToOS,
   getPublicOS,
   getPublicOSPhotos,
   getStatusHistoryByOS,
