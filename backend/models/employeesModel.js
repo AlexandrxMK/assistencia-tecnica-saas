@@ -32,8 +32,12 @@ function resolveAccessLevelForStorage(level, fallback = 1) {
   return toAccessLevelCode(level);
 }
 
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
 function getRawPassword(input = {}) {
-  return input.senha ?? input.senha_hash ?? null;
+  return input.senha ?? input.password ?? input.senha_hash ?? null;
 }
 
 async function getAllEmployees() {
@@ -67,6 +71,7 @@ async function getEmployeeById(id) {
 }
 
 async function getEmployeeAuthByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
   const { rows } = await pool.query(
     `SELECT
        id_funcionario,
@@ -76,8 +81,8 @@ async function getEmployeeAuthByEmail(email) {
        nivel_acesso,
        id_cargo
      FROM funcionario
-     WHERE email = $1`,
-    [email]
+     WHERE LOWER(TRIM(email)) = $1`,
+    [normalizedEmail]
   );
 
   return rows[0];
@@ -92,11 +97,12 @@ async function createEmployee({
   nome,
   email,
   senha,
+  password,
   senha_hash,
   nivel_acesso,
   id_cargo
 }) {
-  const rawPassword = getRawPassword({ senha, senha_hash });
+  const rawPassword = getRawPassword({ senha, password, senha_hash });
 
   if (!rawPassword) {
     throw new Error('Senha obrigatoria');
@@ -104,6 +110,7 @@ async function createEmployee({
 
   const passwordHash = await hashPassword(rawPassword);
   const normalizedAccessLevel = resolveAccessLevelForStorage(nivel_acesso, 1);
+  const normalizedEmail = normalizeEmail(email);
 
   const { rows } = await pool.query(
     `INSERT INTO funcionario
@@ -117,7 +124,7 @@ async function createEmployee({
        id_cargo`,
     [
       nome,
-      email,
+      normalizedEmail,
       passwordHash,
       normalizedAccessLevel,
       id_cargo || null
@@ -129,9 +136,10 @@ async function createEmployee({
 
 async function updateEmployee(
   id,
-  { nome, email, senha, senha_hash, nivel_acesso, id_cargo }
+  { nome, email, senha, password, senha_hash, nivel_acesso, id_cargo }
 ) {
-  const rawPassword = getRawPassword({ senha, senha_hash });
+  const rawPassword = getRawPassword({ senha, password, senha_hash });
+  const normalizedEmail = normalizeEmail(email);
   let query = `
     UPDATE funcionario
     SET nome = $1,
@@ -141,7 +149,7 @@ async function updateEmployee(
 
   const params = [
     nome,
-    email,
+    normalizedEmail,
     resolveAccessLevelForStorage(nivel_acesso, 1),
     id_cargo || null
   ];
@@ -178,6 +186,8 @@ async function patchEmployee(id, fields) {
     if (allowedFields.includes(key)) {
       const normalizedValue = key === 'nivel_acesso'
         ? resolveAccessLevelForStorage(value, 1)
+        : key === 'email'
+          ? normalizeEmail(value)
         : value;
       updates.push(`${key} = $${updates.length + 1}`);
       values.push(normalizedValue);
