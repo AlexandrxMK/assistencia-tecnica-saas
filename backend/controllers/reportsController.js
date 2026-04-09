@@ -77,6 +77,164 @@ const getAverageTicket = async (req, res) => {
   }
 };
 
+function formatCurrencyBR(value) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
+}
+
+function formatMonthLabel(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value || '-');
+  }
+
+  return date.toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' });
+}
+
+const generateRevenuePDF = async (req, res) => {
+  try {
+    const start = String(req.query?.start || '').trim();
+    const end = String(req.query?.end || '').trim();
+    const hasStart = Boolean(start);
+    const hasEnd = Boolean(end);
+
+    if (hasStart !== hasEnd) {
+      return res.status(400).json({
+        message: 'Para filtrar no PDF, informe start e end juntos'
+      });
+    }
+
+    if (hasStart && hasEnd) {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+        return res.status(400).json({ message: 'Periodo invalido para o PDF' });
+      }
+
+      if (startDate > endDate) {
+        return res.status(400).json({ message: 'A data inicial deve ser menor ou igual a final' });
+      }
+    }
+
+    const [totalRevenue, monthlyRevenue, periodRevenue] = await Promise.all([
+      model.getTotalRevenue(),
+      model.getMonthlyRevenue(),
+      hasStart && hasEnd ? model.getRevenueByPeriod(start, end) : Promise.resolve(null)
+    ]);
+
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename=relatorio-faturamento.pdf');
+    doc.pipe(res);
+
+    let currentY = 50;
+
+    const ensureSpace = (heightNeeded = 24) => {
+      if (currentY + heightNeeded > doc.page.height - 60) {
+        doc.addPage();
+        currentY = 50;
+      }
+    };
+
+    doc
+      .fillColor('#1a73e8')
+      .font('Helvetica-Bold')
+      .fontSize(18)
+      .text('Relatorio de Faturamento', 50, currentY);
+    currentY += 26;
+
+    doc
+      .fillColor('#555555')
+      .font('Helvetica')
+      .fontSize(10)
+      .text(`Emitido em: ${new Date().toLocaleString('pt-BR')}`, 50, currentY);
+    currentY += 22;
+
+    doc
+      .fillColor('#111111')
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text(`Receita total confirmada: ${formatCurrencyBR(totalRevenue?.total)}`, 50, currentY);
+    currentY += 20;
+
+    if (periodRevenue) {
+      doc
+        .fillColor('#111111')
+        .font('Helvetica')
+        .fontSize(11)
+        .text(
+          `Receita no periodo (${start} a ${end}): ${formatCurrencyBR(periodRevenue.total)}`,
+          50,
+          currentY
+        );
+      currentY += 20;
+    }
+
+    ensureSpace(28);
+    doc
+      .fillColor('#1a73e8')
+      .font('Helvetica-Bold')
+      .fontSize(13)
+      .text('Receita mensal (pagamentos confirmados)', 50, currentY);
+    currentY += 18;
+
+    if (!monthlyRevenue || monthlyRevenue.length === 0) {
+      doc
+        .fillColor('#666666')
+        .font('Helvetica')
+        .fontSize(10)
+        .text('Nao ha pagamentos confirmados para listar.', 50, currentY);
+      currentY += 16;
+    } else {
+      ensureSpace(24);
+
+      doc.rect(50, currentY, 240, 20).fill('#e8f0fe');
+      doc.rect(290, currentY, 240, 20).fill('#e8f0fe');
+      doc
+        .fillColor('#1f3a68')
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .text('Mes', 58, currentY + 5)
+        .text('Total', 298, currentY + 5);
+      currentY += 20;
+
+      monthlyRevenue.forEach((item) => {
+        ensureSpace(20);
+
+        doc.rect(50, currentY, 240, 20).stroke('#d8dee8');
+        doc.rect(290, currentY, 240, 20).stroke('#d8dee8');
+        doc
+          .fillColor('#222222')
+          .font('Helvetica')
+          .fontSize(10)
+          .text(formatMonthLabel(item.month), 58, currentY + 5)
+          .text(formatCurrencyBR(item.total), 298, currentY + 5);
+        currentY += 20;
+      });
+    }
+
+    ensureSpace(40);
+    currentY += 12;
+    doc
+      .fillColor('#888888')
+      .font('Helvetica')
+      .fontSize(9)
+      .text(
+        'Documento gerado automaticamente pelo sistema de gestao de assistencia tecnica.',
+        50,
+        currentY,
+        { width: doc.page.width - 100, align: 'center' }
+      );
+
+    doc.end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 const generateAllOrdersPDF = async (req, res) => {
   try {
     const data = await model.getAllOrders();
@@ -304,5 +462,6 @@ module.exports = {
   getRevenueByPeriod,
   getOrdersSummary,
   getAverageTicket,
+  generateRevenuePDF,
   generateAllOrdersPDF
 };

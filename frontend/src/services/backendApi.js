@@ -79,6 +79,11 @@ export const backendApi = {
     totalRevenue: () => api.get('/reports/revenue'),
     monthlyRevenue: () => api.get('/reports/revenue/monthly'),
     revenueByPeriod: (params) => api.get('/reports/revenue/period', { params }),
+    generateRevenuePdf: (params) =>
+      api.get('/reports/revenue/pdf', {
+        params,
+        responseType: 'blob'
+      }),
     ordersByStatus: () => api.get('/reports/orders/status'),
     ordersSummary: () => api.get('/reports/orders/summary'),
     mostUsedParts: () => api.get('/reports/parts/most-used'),

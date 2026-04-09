@@ -10,6 +10,7 @@ router.use(authenticate);
 router.get('/revenue', controller.getTotalRevenue);
 router.get('/revenue/monthly', controller.getMonthlyRevenue);
 router.get('/revenue/period', controller.getRevenueByPeriod);
+router.get('/revenue/pdf', controller.generateRevenuePDF);
 
 // Orders
 router.get('/orders/status', controller.getOrdersByStatus);

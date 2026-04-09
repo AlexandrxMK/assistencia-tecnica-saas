@@ -90,6 +90,32 @@ export function ReportsPage() {
     }
   }
 
+  async function handleOpenRevenuePdf() {
+    const hasStart = Boolean(period.start);
+    const hasEnd = Boolean(period.end);
+
+    if (hasStart !== hasEnd) {
+      setStatus({
+        type: 'error',
+        text: 'Para gerar PDF filtrado por periodo, preencha inicio e fim.'
+      });
+      return;
+    }
+
+    try {
+      const params = hasStart && hasEnd
+        ? { start: period.start, end: period.end }
+        : undefined;
+      const response = await backendApi.reports.generateRevenuePdf(params);
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setStatus({ type: 'success', text: 'PDF de faturamento gerado com sucesso.' });
+    } catch (error) {
+      setStatus({ type: 'error', text: extractApiError(error) });
+    }
+  }
+
   return (
     <div className="page-stack">
       <div className="metrics-grid">
@@ -134,6 +160,9 @@ export function ReportsPage() {
           </label>
           <button type="submit" className="button button-secondary">
             Calcular período
+          </button>
+          <button type="button" className="button button-secondary" onClick={handleOpenRevenuePdf}>
+            Gerar PDF de faturamento
           </button>
           <button type="button" className="button button-primary" onClick={handleOpenOrdersPdf}>
             Gerar PDF de todas as OS
